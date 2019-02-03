@@ -19,11 +19,14 @@
 <script id="shader-fullscreen-vs" type="x-shader/x-vertex">
 	attribute vec3 aVertexPosition;
 	varying vec3 mynum;
+	uniform vec3 rayStartIn;
+	varying vec3 rayStart;
 	
 	void main(void) {
 		gl_Position = vec4(aVertexPosition,1.0);
 		//mynum = 0.5*aVertexPosition.xy + 0.5;
 		mynum = aVertexPosition+vec3(0.0,0.0,0.2);	// z=1 for 90deg fov
+		rayStart = rayStartIn;	//later for near plane or ortho camera, this will vary across camera view.
 	}
 </script>
 
@@ -32,6 +35,7 @@
 <script id="shader-flatcolor-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		gl_FragColor = vec4(mynum.xy*0.5+0.5,0.0,1.0);
@@ -43,10 +47,11 @@
 <script id="shader-raymarch1-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		vec3 theSphere=vec3(0.0,0.0,10.0);	//position a sphere in view
 		for (int ii=0;ii<10;ii++){
@@ -63,10 +68,11 @@
 <script id="shader-raymarch2-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		vec3 theSphere=vec3(0.0,0.0,10.0);	//position a sphere in view
 		for (int ii=0;ii<32;ii++){
@@ -84,10 +90,11 @@
 <script id="shader-raymarch3-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
 		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
@@ -108,10 +115,11 @@
 <script id="shader-raymarch4-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
 		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
@@ -136,10 +144,11 @@
 	precision mediump float;
 	//precision highp float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
 		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
@@ -169,10 +178,11 @@
 	precision mediump float;
 	//precision highp float;
 	varying vec3 mynum;
+	varying vec3 rayStart;
 
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
-		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		vec3 theTorus=vec3(2.0,2.0,4.0);	//position a sphere in view
 		float numSteps=64.0;
@@ -244,9 +254,9 @@ then can look at
 var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch6-fs",{
+	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch2-fs",{
 					attributes:["aVertexPosition"],
-					uniforms:[]
+					uniforms:["rayStartIn"]
 					});
 }
 
@@ -332,7 +342,9 @@ function drawScene(){
 	var activeShaderProgram = shaderPrograms.flat;
 	gl.useProgram(activeShaderProgram);
 	
-	
+	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,Math.random()]);
+	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.002 % 8]);
+		
 	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 }
 
