@@ -271,13 +271,13 @@
 			
 			//chop smaller holes out (will do this iteratively)
 			toObjectVec*=3.0;
-			toObjectVec = mod(toObjectVec,1.0)-0.5;	//wrong
+			toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;	//wrong
 			absVec = abs(toObjectVec);
 			maxxy = max(absVec.x,absVec.y);	//square hole
 			maxxz = max(absVec.x,absVec.z);	//square hole
 			maxyz = max(absVec.y,absVec.z);	//square hole
 			minhole = min(min(maxxy,maxxz),maxyz);
-			cubsdf = max(cubsdf , 0.25-minhole);
+			cubsdf = max(cubsdf , (0.25-minhole)/3.0);
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
@@ -309,13 +309,13 @@
 		
 		//chop smaller holes out (will do this iteratively)
 		toObjectVec*=3.0;
-		toObjectVec = mod(toObjectVec,1.0)-0.5;	//wrong
+		toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;	//wrong
 		absVec = abs(toObjectVec);
 		maxxy = max(absVec.x,absVec.y);	//square hole
 		maxxz = max(absVec.x,absVec.z);	//square hole
 		maxyz = max(absVec.y,absVec.z);	//square hole
 		minhole = min(min(maxxy,maxxz),maxyz);
-		newcubsdf = max(newcubsdf , 0.25-minhole);
+		newcubsdf = max(newcubsdf , (0.25-minhole)/3.0);
 		
 		float distanceDifference = newcubsdf - cubsdf;
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
@@ -323,6 +323,7 @@
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
 		float mycol=max(0.0,1.0-numSteps/64.0);
 		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol)*lightval,1.0);
+		//gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol),1.0);
 		//gl_FragColor = vec4(vec3(lightval),1.0);
 	}
 </script>
