@@ -163,6 +163,38 @@
 	}
 </script>
 
+<!-- fragment shader -->
+<!-- cube array tori-->
+<script id="shader-raymarch6-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	//precision highp float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		vec3 theTorus=vec3(2.0,2.0,4.0);	//position a sphere in view
+		float numSteps=64.0;
+		for (int ii=0;ii<64;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy,4.0);
+			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
+			rayPos.z =mod(rayPos.z,8.0);
+			vec3 toTorus = rayPos.xyz - theTorus;
+			float rad = length(toTorus.xy)-1.5;
+			float toSphere = length(vec2(rad,toTorus.z)) -0.25;
+			rayPos+=toSphere*rayDir;
+		
+			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
+			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother
+		}
+		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
+		float mycol=max(0.0,1.0-numSteps/64.0);
+		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol),1.0);
+	}
+</script>
+
 <script type="text/javascript" src="lib/stats.min.js"></script>
 <script type="text/javascript" src="utils/webgl_utils.js"></script>
 <script type="text/javascript" src="data/quad.js"></script>
@@ -193,7 +225,7 @@ then can look at
 var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch5-fs",{
+	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch6-fs",{
 					attributes:["aVertexPosition"],
 					uniforms:[]
 					});
