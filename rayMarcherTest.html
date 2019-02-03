@@ -343,6 +343,7 @@
 		rayPos.xy =mod(rayPos.xy,4.0);
 		//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
 		rayPos.z =mod(rayPos.z,8.0);
+		
 		vec3 toObjectVec = rayPos.xyz - theTorus;
 		vec3 absVec = abs(toObjectVec);
 		float maxxy = max(absVec.x,absVec.y);	//square hole
@@ -352,8 +353,14 @@
 		float cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
 		
 		//chop smaller holes out TODO incorporate 1st hole cuts into this (above)
+		
+		//figure out how many iterations.
+		int numIters = int(4.0/(1.0+0.03*rayPos.w));	//TODO should use z, and should be from camera
+									//numbers guessed really should depend on screen resolution, fov
+		
 		float divideFactor=1.0;
-		for (int ii=0;ii<2;ii++){	//high nums lead to horrible aliasing! TODO depth dependent on distance from cam?
+		for (int ii=0;ii<4;ii++){	//high nums lead to horrible aliasing! TODO depth dependent on distance from cam?
+			if (ii==numIters){break;}
 			divideFactor*=3.0;
 			toObjectVec*=3.0;
 			toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;
