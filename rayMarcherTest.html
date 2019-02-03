@@ -25,7 +25,7 @@
 	void main(void) {
 		gl_Position = vec4(aVertexPosition,1.0);
 		//mynum = 0.5*aVertexPosition.xy + 0.5;
-		mynum = aVertexPosition+vec3(0.0,0.0,0.2);	// z=1 for 90deg fov
+		mynum = aVertexPosition+vec3(0.0,0.0,0.4);	// z=1 for 90deg fov
 		rayStart = rayStartIn;	//later for near plane or ortho camera, this will vary across camera view.
 	}
 </script>
@@ -244,6 +244,9 @@
 		vec3 toObjectVec;
 		float cubsdf;
 		float maxxy;
+		float maxxz;
+		float maxyz;
+		float minhole;
 		for (int ii=0;ii<64;ii++){
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
@@ -259,8 +262,11 @@
 			vec3 absVec = abs(toObjectVec);
 			
 			maxxy = max(absVec.x,absVec.y);	//square hole
+			maxxz = max(absVec.x,absVec.z);	//square hole
+			maxyz = max(absVec.y,absVec.z);	//square hole
+			minhole = min(min(maxxy,maxxz),maxyz);
 			
-			cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-maxxy);
+			cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
@@ -283,7 +289,11 @@
 		vec3 absVec = abs(toObjectVec);
 		
 		maxxy = max(absVec.x,absVec.y);
-		float distanceDifference = max(max(absVec.z,maxxy)-0.75, 0.25-maxxy) - cubsdf;
+		maxxz = max(absVec.x,absVec.z);	//square hole
+		maxyz = max(absVec.y,absVec.z);	//square hole
+		minhole = min(min(maxxy,maxxz),maxyz);
+		
+		float distanceDifference = max(max(absVec.z,maxxy)-0.75, 0.25-minhole) - cubsdf;
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 		
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
