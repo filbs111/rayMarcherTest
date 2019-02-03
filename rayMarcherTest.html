@@ -243,6 +243,7 @@
 		float rad;
 		vec3 toObjectVec;
 		float cubsdf;
+		float maxxy;
 		for (int ii=0;ii<64;ii++){
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
@@ -256,7 +257,10 @@
 			*/
 			toObjectVec = rayPos.xyz - theTorus;
 			vec3 absVec = abs(toObjectVec);
-			cubsdf = max(absVec.z,max(absVec.x,absVec.y))-0.5;
+			
+			maxxy = max(absVec.x,absVec.y);	//square hole
+			
+			cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-maxxy);
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
@@ -278,7 +282,8 @@
 		toObjectVec = rayPos.xyz - theTorus;
 		vec3 absVec = abs(toObjectVec);
 		
-		float distanceDifference = (max(absVec.z,max(absVec.x,absVec.y))-0.5) - cubsdf;
+		maxxy = max(absVec.x,absVec.y);
+		float distanceDifference = max(max(absVec.z,maxxy)-0.75, 0.25-maxxy) - cubsdf;
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 		
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
