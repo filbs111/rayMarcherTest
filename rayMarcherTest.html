@@ -151,6 +151,7 @@
 	}
 </script>
 
+<script type="text/javascript" src="lib/stats.min.js"></script>
 <script type="text/javascript" src="utils/webgl_utils.js"></script>
 <script type="text/javascript" src="data/quad.js"></script>
 
@@ -255,22 +256,31 @@ function drawObjectFromPreppedBuffers(bufferObj, shaderProg){
 }
 
 function drawScene(){
-	resizecanvas();
-	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+	requestAnimationFrame(drawScene);
+	stats.end();
+	stats.begin();
 
+	//resizecanvas(6);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
+	resizecanvas(1)
+	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);	//TODO should this be every frame?
 
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 	var activeShaderProgram = shaderProgramFlat;
 	gl.useProgram(activeShaderProgram);
 	
-	gl.disable(gl.DEPTH_TEST);	
+	
 	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 }
 
 //first get a gl window with some clearcolor
 
 function init(){
+
+	stats = new Stats();
+	stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+	document.body.appendChild( stats.dom );
+
 	canvas = document.getElementById("mycanvas");
 	initGL();
 	
@@ -278,12 +288,11 @@ function init(){
 	gl.clearColor.apply(gl,[0,1,0,1]);
 	//gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	
-	
 	initShaders();
 	initBuffers();
+	gl.disable(gl.DEPTH_TEST);
 
-	drawScene();
-
+	requestAnimationFrame(drawScene);
 }
 
 

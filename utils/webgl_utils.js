@@ -14,9 +14,13 @@ function initGL(){
 		alert("Could not initialise WebGL, sorry :-(");
 	}
 }
-function resizecanvas(){
+function resizecanvas(overResolutionFactor){
 	var screenWidth = window.innerWidth;
 	var screenHeight = window.innerHeight;
+	
+	screenWidth*=overResolutionFactor;
+	screenHeight*=overResolutionFactor;
+	
 	if (canvas.width != screenWidth || canvas.height != screenHeight){
 		canvas.width = screenWidth;
 		canvas.height = screenHeight;
@@ -24,6 +28,9 @@ function resizecanvas(){
 		gl.viewportHeight = screenHeight;	//?? need to set both these things?? 
 	}
 	screenAspect = gl.viewportWidth/gl.viewportHeight;
+	
+	canvas.style.width=window.innerWidth+"px";
+	canvas.style.height=window.innerHeight+"px";
 	
 	console.log(screenAspect);
 	console.log(screenWidth);
