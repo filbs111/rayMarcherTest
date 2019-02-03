@@ -19,13 +19,14 @@
 <script id="shader-fullscreen-vs" type="x-shader/x-vertex">
 	attribute vec3 aVertexPosition;
 	varying vec3 mynum;
+	uniform vec3 fovScale;
 	uniform vec3 rayStartIn;
 	varying vec3 rayStart;
 	
 	void main(void) {
 		gl_Position = vec4(aVertexPosition,1.0);
 		//mynum = 0.5*aVertexPosition.xy + 0.5;
-		mynum = aVertexPosition+vec3(0.0,0.0,0.4);	// z=1 for 90deg fov
+		mynum = (aVertexPosition+vec3(0.0,0.0,1.0))*fovScale;	// z=1 for 90deg fov
 		rayStart = rayStartIn;	//later for near plane or ortho camera, this will vary across camera view.
 	}
 </script>
@@ -335,7 +336,7 @@ function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
 	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch7-fs",{
 					attributes:["aVertexPosition"],
-					uniforms:["rayStartIn"]
+					uniforms:["fovScale","rayStartIn"]
 					});
 }
 
@@ -421,6 +422,7 @@ function drawScene(){
 	var activeShaderProgram = shaderPrograms.flat;
 	gl.useProgram(activeShaderProgram);
 	
+	gl.uniform3fv(activeShaderProgram.uniforms.fovScale, [gl.viewportWidth/gl.viewportHeight,1,1]);
 	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,Math.random()]);
 	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.002 % 8]);
 		
