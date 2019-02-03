@@ -269,6 +269,16 @@
 			
 			cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
 			
+			//chop smaller holes out (will do this iteratively)
+			toObjectVec*=3.0;
+			toObjectVec = mod(toObjectVec,1.0)-0.5;	//wrong
+			absVec = abs(toObjectVec);
+			maxxy = max(absVec.x,absVec.y);	//square hole
+			maxxz = max(absVec.x,absVec.z);	//square hole
+			maxyz = max(absVec.y,absVec.z);	//square hole
+			minhole = min(min(maxxy,maxxz),maxyz);
+			cubsdf = max(cubsdf , 0.25-minhole);
+			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 					//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
@@ -294,7 +304,20 @@
 		maxyz = max(absVec.y,absVec.z);	//square hole
 		minhole = min(min(maxxy,maxxz),maxyz);
 		
-		float distanceDifference = max(max(absVec.z,maxxy)-0.75, 0.25-minhole) - cubsdf;
+		float newcubsdf;
+		newcubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
+		
+		//chop smaller holes out (will do this iteratively)
+		toObjectVec*=3.0;
+		toObjectVec = mod(toObjectVec,1.0)-0.5;	//wrong
+		absVec = abs(toObjectVec);
+		maxxy = max(absVec.x,absVec.y);	//square hole
+		maxxz = max(absVec.x,absVec.z);	//square hole
+		maxyz = max(absVec.y,absVec.z);	//square hole
+		minhole = min(min(maxxy,maxxz),maxyz);
+		newcubsdf = max(newcubsdf , 0.25-minhole);
+		
+		float distanceDifference = newcubsdf - cubsdf;
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 		
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
