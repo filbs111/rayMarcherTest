@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+<meta content="utf-8" http-equiv="encoding">
+
+<title>raymarcher test</title>
+
+<!-- vertex shader with tex coords -->
+<!-- start simple by just use 1 vec for ray direction. assume camera fixed at zero. likely should include matrix transformation for camera, pass through both ray start and direction as separate varying-->
+<script id="shader-fullscreen-vs" type="x-shader/x-vertex">
+	attribute vec3 aVertexPosition;
+	varying vec3 mynum;
+	
+	void main(void) {
+		gl_Position = vec4(aVertexPosition,1.0);
+		//mynum = 0.5*aVertexPosition.xy + 0.5;
+		mynum = aVertexPosition+vec3(0.0,0.0,1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- super simple, just flat colour, then shade colour across image to check passing through vertex position stuff ok-->
+<script id="shader-flatcolor-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		gl_FragColor = vec4(mynum.xy*0.5+0.5,0.0,1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- single sphere raymarch-->
+<script id="shader-raymarch1-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		vec3 theSphere=vec3(0.0,0.0,10.0);	//position a sphere in view
+		for (int ii=0;ii<10;ii++){
+			//get distance estimate from rayPos
+			float toSphere = length(rayPos.xyz - theSphere);
+			rayPos+=(toSphere-1.0)*rayDir;
+		}
+		gl_FragColor = vec4(vec3(1.0-0.001*rayPos.w),1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- square array spheres-->
+<script id="shader-raymarch2-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		vec3 theSphere=vec3(0.0,0.0,10.0);	//position a sphere in view
+		for (int ii=0;ii<32;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy+2.0,4.0)-2.0;
+			float toSphere = length(rayPos.xyz - theSphere);
+			rayPos+=(toSphere-1.0)*rayDir;
+		}
+		gl_FragColor = vec4(vec3(max(0.0,1.0-0.00002*rayPos.w)),1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- cube array spheres-->
+<script id="shader-raymarch3-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
+		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
+		for (int ii=0;ii<64;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy,4.0);
+			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
+			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			float toSphere = length(rayPos.xyz - theSphere);
+			rayPos+=(toSphere-1.0)*rayDir;
+		}
+		gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- cube array spheres, break if close-->
+<script id="shader-raymarch4-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
+		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
+		float numSteps=64.0;
+		for (int ii=0;ii<64;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy,4.0);
+			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
+			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			float toSphere = length(rayPos.xyz - theSphere) -1.0;
+			rayPos+=toSphere*rayDir;
+			if (toSphere<0.02){numSteps=float(ii);break;}	//arbitary small number. 
+		}
+		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
+		gl_FragColor = vec4(vec3(max(0.0,1.0-numSteps/64.0)),1.0);
+	}
+</script>
+
+<!-- fragment shader -->
+<!-- cube array spheres, break if close-->
+<script id="shader-raymarch5-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	varying vec3 mynum;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		//vec3 theSphere=vec3(2.0,2.0,8.0);	//position a sphere in view
+		vec3 theSphere=vec3(2.0,2.0,4.0);	//position a sphere in view
+		float numSteps=64.0;
+		for (int ii=0;ii<64;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy,4.0);
+			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
+			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			float toSphere = length(rayPos.xyz - theSphere) -1.0;
+			rayPos+=toSphere*rayDir;
+			if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
+		}
+		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
+		float mycol=max(0.0,1.0-numSteps/64.0);
+		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol),1.0);
+	}
+</script>
+
+<script type="text/javascript" src="utils/webgl_utils.js"></script>
+<script type="text/javascript" src="data/quad.js"></script>
+
+<script type="text/javascript">
+/*
+basic raymarcher test
+initially just an array of cubes, no camera transform
+get webgl boilerplate working
+
+then can look at
+* multiple scenes (different shaders)
+* camera transformation (including ortho. the ray start point can be a varying, and might be varying for persp too if choose a near clip plane)
+* speedup by changnig termination condition (basically size of pixel at given distance, but 
+* speedup by shooting blocks (cones for perspective camera) and rendering series of increasing resolution depth maps
+* fractals!
+* consistent alternate version where raymarching shader is applied to surface of an object eg a cube that surrounds the object described by SDF (eg mandelbox), transformed in the vertex shader. (for use in hybrid renderer / to draw fewer pixels)
+* hybrid version in scene with pther objects
+* shadows
+* hybrid shadows?
+* etc, etc!
+* having SDF and raymarcher in copy accessible to js code too, for collision. 
+* using this to implement say, sphere player collider
+* normals (derivative of SDF) for rendering and collision response (bounce/ friction?)
+
+*/
+
+var shaderProgramFlat;
+function initShaders(){
+	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
+	shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-raymarch5-fs",{
+					attributes:["aVertexPosition"],
+					uniforms:[]
+					});
+}
+
+var quadBuffers={};
+
+function initBuffers(){
+
+	loadBufferData(quadBuffers, quadData);
+
+	function bufferArrayData(buffer, arr, size){
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+		buffer.itemSize = size;
+		buffer.numItems = arr.length / size;
+		console.log("buffered. numitems: " + buffer.numItems);
+	}
+	
+	function loadBufferData(bufferObj, sourceData){
+		bufferObj.vertexPositionBuffer = gl.createBuffer();
+		bufferArrayData(bufferObj.vertexPositionBuffer, sourceData.vertices, 3);
+		//stuff about normals etc present in 3-sph project got this from, removed here. 
+		
+		//triangles rather than strip, but no big deal- frag shader does most of the work!
+		bufferObj.vertexIndexBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufferObj.vertexIndexBuffer);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(sourceData.indices), gl.STATIC_DRAW);
+		bufferObj.vertexIndexBuffer.itemSize = 3;
+		bufferObj.vertexIndexBuffer.numItems = sourceData.indices.length;
+	}
+}
+
+
+//copied from 3sphere project. much of this unused since objs here don't have normals, textures
+function drawObjectFromBuffers(bufferObj, shaderProg, usesCubeMap){
+	prepBuffersForDrawing(bufferObj, shaderProg, usesCubeMap);
+	drawObjectFromPreppedBuffers(bufferObj, shaderProg);
+}
+function prepBuffersForDrawing(bufferObj, shaderProg, usesCubeMap){
+	gl.enable(gl.CULL_FACE);
+	gl.bindBuffer(gl.ARRAY_BUFFER, bufferObj.vertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProg.attributes.aVertexPosition, bufferObj.vertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	
+	/*
+	if (bufferObj.vertexNormalBuffer && shaderProg.attributes.aVertexNormal){
+		gl.bindBuffer(gl.ARRAY_BUFFER, bufferObj.vertexNormalBuffer);
+		gl.vertexAttribPointer(shaderProg.attributes.aVertexNormal, bufferObj.vertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+	}
+	*/
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufferObj.vertexIndexBuffer);
+	/*
+	if (bufferObj.vertexTextureCoordBuffer){
+		gl.bindBuffer(gl.ARRAY_BUFFER, bufferObj.vertexTextureCoordBuffer);
+		gl.vertexAttribPointer(shaderProg.attributes.aTextureCoord, bufferObj.vertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.uniform1i(shaderProg.uniforms.uSampler, 0);
+	}
+	
+	if (usesCubeMap){
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_CUBE_MAP, cubemapTexture);
+		gl.uniform1i(shaderProg.uniforms.uSampler, 0);
+	}
+	*/
+	//gl.uniformMatrix4fv(shaderProg.uniforms.uPMatrix, false, pMatrix);
+}
+function drawObjectFromPreppedBuffers(bufferObj, shaderProg){
+	//gl.uniformMatrix4fv(shaderProg.uniforms.uMVMatrix, false, mvMatrix);
+	gl.drawElements(gl.TRIANGLES, bufferObj.vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+}
+
+function drawScene(){
+	resizecanvas();
+	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+
+
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	var activeShaderProgram = shaderProgramFlat;
+	gl.useProgram(activeShaderProgram);
+	
+	gl.disable(gl.DEPTH_TEST);	
+	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+}
+
+//first get a gl window with some clearcolor
+
+function init(){
+	canvas = document.getElementById("mycanvas");
+	initGL();
+	
+	//try clearing to green
+	gl.clearColor.apply(gl,[0,1,0,1]);
+	//gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+	
+	
+	initShaders();
+	initBuffers();
+
+	drawScene();
+
+}
+
+
+
+</script>
+</head>
+
+<body onload="init()">
+
+<canvas id="mycanvas"></canvas>
+
+
+
+</body>
+</html>
