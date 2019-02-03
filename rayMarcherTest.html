@@ -176,22 +176,41 @@
 		vec4 rayDir=vec4(normalize(mynum),1.0);
 		vec3 theTorus=vec3(2.0,2.0,4.0);	//position a sphere in view
 		float numSteps=64.0;
+		vec3 toTorus;
+		float rad;
+		float toSphere;
 		for (int ii=0;ii<64;ii++){
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
 			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
 			rayPos.z =mod(rayPos.z,8.0);
-			vec3 toTorus = rayPos.xyz - theTorus;
-			float rad = length(toTorus.xy)-1.5;
-			float toSphere = length(vec2(rad,toTorus.z)) -0.25;
-			rayPos+=toSphere*rayDir;
-		
+			toTorus = rayPos.xyz - theTorus;
+			rad = length(toTorus.xy)-1.5;
+			toSphere = length(vec2(rad,toTorus.z)) -0.25;
+			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother
+			
+			rayPos+=toSphere*rayDir;
 		}
+		
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.001;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+		rayPos+=vec4(0.0,smallDisp,0.0,0.0); 	
+		rayPos.xy =mod(rayPos.xy,4.0);
+		rayPos.z =mod(rayPos.z,8.0);
+		toTorus = rayPos.xyz - theTorus;
+		rad = length(toTorus.xy)-1.5;
+		float distanceDifference = (length(vec2(rad,toTorus.z)) -0.25) - toSphere;
+		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
+		
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
 		float mycol=max(0.0,1.0-numSteps/64.0);
-		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol),1.0);
+		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol)*lightval,1.0);
+		//gl_FragColor = vec4(vec3(lightval),1.0);
 	}
 </script>
 
@@ -304,7 +323,7 @@ function drawScene(){
 	stats.end();
 	stats.begin();
 
-	resizecanvas(5);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
+	resizecanvas(1);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
 	//resizecanvas(1)
 	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);	//TODO should this be every frame?
 
