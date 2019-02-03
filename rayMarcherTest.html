@@ -350,16 +350,24 @@
 		float maxyz = max(absVec.y,absVec.z);	//square hole
 		float minhole = min(min(maxxy,maxxz),maxyz);
 		float cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
-		//chop smaller holes out (will do this iteratively)
-		toObjectVec*=3.0;
-		toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;	//wrong
-		absVec = abs(toObjectVec);
-		maxxy = max(absVec.x,absVec.y);	//square hole
-		maxxz = max(absVec.x,absVec.z);	//square hole
-		maxyz = max(absVec.y,absVec.z);	//square hole
-		minhole = min(min(maxxy,maxxz),maxyz);
-		cubsdf = max(cubsdf , (0.25-minhole)/3.0);
+		
+		//chop smaller holes out TODO incorporate 1st hole cuts into this (above)
+		float divideFactor=1.0;
+		for (int ii=0;ii<2;ii++){	//high nums lead to horrible aliasing! TODO depth dependent on distance from cam?
+			divideFactor*=3.0;
+			toObjectVec*=3.0;
+			toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;
+			absVec = abs(toObjectVec);
+			maxxy = max(absVec.x,absVec.y);	//square hole
+			maxxz = max(absVec.x,absVec.z);	//square hole
+			maxyz = max(absVec.y,absVec.z);	//square hole
+			minhole = min(min(maxxy,maxxz),maxyz);
+			cubsdf = max(cubsdf , (0.25-minhole)/divideFactor);
+		}
+		
 		return cubsdf;
+		
+		
 	}
 	
 	void main(void) {
@@ -434,7 +442,7 @@ then can look at
 var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch7-fs",{
+	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch8-fs",{
 					attributes:["aVertexPosition"],
 					uniforms:["fovScale","rayStartIn"]
 					});
