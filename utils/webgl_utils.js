@@ -32,9 +32,9 @@ function resizecanvas(overResolutionFactor){
 	canvas.style.width=window.innerWidth+"px";
 	canvas.style.height=window.innerHeight+"px";
 	
-	console.log(screenAspect);
-	console.log(screenWidth);
-	console.log(screenHeight);
+	//console.log(screenAspect);
+	//console.log(screenWidth);
+	//console.log(screenHeight);
 }
 
 function getShader(gl, id) {

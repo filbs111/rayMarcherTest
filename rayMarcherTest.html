@@ -164,7 +164,7 @@
 			//rayPos = rayDir*rayPos.w;	//should have no effect
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother
+			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 		}
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
 		float mycol=max(0.0,1.0-numSteps/64.0);
@@ -199,7 +199,7 @@
 			toSphere = length(vec2(rad,toTorus.z)) -0.25;
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother
+			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 			
 			rayPos+=toSphere*rayDir;
 		}
@@ -215,6 +215,70 @@
 		toTorus = rayPos.xyz - theTorus;
 		rad = length(toTorus.xy)-1.5;
 		float distanceDifference = (length(vec2(rad,toTorus.z)) -0.25) - toSphere;
+		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
+		
+		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
+		float mycol=max(0.0,1.0-numSteps/64.0);
+		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol)*lightval,1.0);
+		//gl_FragColor = vec4(vec3(lightval),1.0);
+	}
+</script>
+
+
+<!-- fragment shader -->
+<!-- cube array menger sponges-->
+<script id="shader-raymarch7-fs" type="x-shader/x-fragment">
+	precision mediump float;
+	//precision highp float;
+	varying vec3 mynum;
+	varying vec3 rayStart;
+
+	void main(void) {
+		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		vec4 rayDir=vec4(normalize(mynum),1.0);
+		vec3 theTorus=vec3(2.0,2.0,4.0);	//position a sphere in view
+		float numSteps=64.0;
+		vec3 toTorus;
+		float rad;
+		vec3 toObjectVec;
+		float cubsdf;
+		for (int ii=0;ii<64;ii++){
+			//get distance estimate from rayPos
+			rayPos.xy =mod(rayPos.xy,4.0);
+			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
+			rayPos.z =mod(rayPos.z,8.0);
+			
+			/*
+			toTorus = rayPos.xyz - theTorus;
+			rad = length(toTorus.xy)-1.5;
+			toObject = length(vec2(rad,toTorus.z)) -0.25;
+			*/
+			toObjectVec = rayPos.xyz - theTorus;
+			vec3 absVec = abs(toObjectVec);
+			cubsdf = max(absVec.z,max(absVec.x,absVec.y))-0.5;
+			
+			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
+			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
+					//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
+			rayPos+=cubsdf*rayDir;
+		}
+		
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.00001;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+		rayPos+=vec4(0.0,smallDisp,0.0,0.0); 	
+		rayPos.xy =mod(rayPos.xy,4.0);
+		rayPos.z =mod(rayPos.z,8.0);
+		
+		//toTorus = rayPos.xyz - theTorus;
+		//rad = length(toTorus.xy)-1.5;
+		toObjectVec = rayPos.xyz - theTorus;
+		vec3 absVec = abs(toObjectVec);
+		
+		float distanceDifference = (max(absVec.z,max(absVec.x,absVec.y))-0.5) - cubsdf;
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 		
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
@@ -254,7 +318,7 @@ then can look at
 var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch2-fs",{
+	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch7-fs",{
 					attributes:["aVertexPosition"],
 					uniforms:["rayStartIn"]
 					});
