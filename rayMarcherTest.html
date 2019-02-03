@@ -7,6 +7,13 @@
 
 <title>raymarcher test</title>
 
+<style>
+	body {
+		margin: 0px;
+		overflow: hidden;
+	}
+</style>
+
 <!-- vertex shader with tex coords -->
 <!-- start simple by just use 1 vec for ray direction. assume camera fixed at zero. likely should include matrix transformation for camera, pass through both ray start and direction as separate varying-->
 <script id="shader-fullscreen-vs" type="x-shader/x-vertex">
@@ -16,7 +23,7 @@
 	void main(void) {
 		gl_Position = vec4(aVertexPosition,1.0);
 		//mynum = 0.5*aVertexPosition.xy + 0.5;
-		mynum = aVertexPosition+vec3(0.0,0.0,1.0);
+		mynum = aVertexPosition+vec3(0.0,0.0,0.2);	// z=1 for 90deg fov
 	}
 </script>
 
@@ -88,7 +95,7 @@
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
 			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
-			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			rayPos.z =mod(rayPos.z,8.0);
 			float toSphere = length(rayPos.xyz - theSphere);
 			rayPos+=(toSphere-1.0)*rayDir;
 		}
@@ -113,7 +120,7 @@
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
 			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
-			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			rayPos.z =mod(rayPos.z,8.0);
 			float toSphere = length(rayPos.xyz - theSphere) -1.0;
 			rayPos+=toSphere*rayDir;
 			if (toSphere<0.02){numSteps=float(ii);break;}	//arbitary small number. 
@@ -127,6 +134,7 @@
 <!-- cube array spheres, break if close-->
 <script id="shader-raymarch5-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	//precision highp float;
 	varying vec3 mynum;
 
 	void main(void) {
@@ -140,10 +148,14 @@
 			//get distance estimate from rayPos
 			rayPos.xy =mod(rayPos.xy,4.0);
 			//rayPos.z =mod(rayPos.z+8.0,16.0)-8.0;
-			rayPos.z =mod(rayPos.z+4.0,8.0)-4.0;
+			rayPos.z =mod(rayPos.z,8.0);
 			float toSphere = length(rayPos.xyz - theSphere) -1.0;
 			rayPos+=toSphere*rayDir;
-			if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
+			
+			//rayPos = rayDir*rayPos.w;	//should have no effect
+			
+			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
+			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother
 		}
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
 		float mycol=max(0.0,1.0-numSteps/64.0);
@@ -178,10 +190,10 @@ then can look at
 
 */
 
-var shaderProgramFlat;
+var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-raymarch5-fs",{
+	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch5-fs",{
 					attributes:["aVertexPosition"],
 					uniforms:[]
 					});
@@ -260,13 +272,13 @@ function drawScene(){
 	stats.end();
 	stats.begin();
 
-	//resizecanvas(6);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
-	resizecanvas(1)
+	resizecanvas(5);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
+	//resizecanvas(1)
 	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);	//TODO should this be every frame?
 
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	var activeShaderProgram = shaderProgramFlat;
+	var activeShaderProgram = shaderPrograms.flat;
 	gl.useProgram(activeShaderProgram);
 	
 	
