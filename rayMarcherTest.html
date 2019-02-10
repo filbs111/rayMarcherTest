@@ -515,7 +515,6 @@
 		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
 		
 		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
-		float startz = rayPos.z;
 		
 		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
@@ -523,7 +522,7 @@
 			cubsdf = sdfFunc(rayPos);
 			//other's sdf might not return 4th as length
 			
-			float inCameraFrameZ = rayPos.z-startz;
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
 			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
 			
 			//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
