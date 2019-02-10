@@ -19,6 +19,7 @@
 <script id="shader-fullscreen-vs" type="x-shader/x-vertex">
 	attribute vec3 aVertexPosition;
 	varying vec3 mynum;
+	uniform mat4 uMVMatrix;
 	uniform vec3 fovScale;
 	uniform vec3 rayStartIn;
 	varying vec3 rayStart;
@@ -26,7 +27,11 @@
 	void main(void) {
 		gl_Position = vec4(aVertexPosition,1.0);
 		//mynum = 0.5*aVertexPosition.xy + 0.5;
-		mynum = (aVertexPosition+vec3(0.0,0.0,1.0))*fovScale;	// z=1 for 90deg fov
+	//	mynum = (aVertexPosition+vec3(0.0,0.0,1.0))*fovScale;	// z=1 for 90deg fov
+	
+		vec4 transformedCoord = uMVMatrix * vec4((aVertexPosition+vec3(0.0,0.0,1.0))*fovScale,1.0);	//TODO better to just use 3x3 so3 matrix?
+		mynum = transformedCoord.xyz;
+	
 		rayStart = rayStartIn;	//later for near plane or ortho camera, this will vary across camera view.
 	}
 </script>
@@ -398,7 +403,7 @@
 		
 		//stereographic projection. see https://en.wikipedia.org/wiki/Stereographic_projection
 		vec3 mynumAdj = mynum/mynum.z;	//adjust to make z 1. can still adjust uniform to change scaling
-		float rsq = mynumAdj.x*mynumAdj.x +mynumAdj.y*mynumAdj.y;	//TODO better glsl formulation? 
+		float rsq = dot(mynumAdj.xy,mynumAdj.xy); 
 			//length of below is rsq+1. is manual normalising better than calling normalize()?
 		float denom = 1.0/(rsq+1.0);
 		vec4 rayDir = vec4( mynumAdj*vec3(2.0,2.0,1.0-rsq)*denom , 1.0);	//-ve z vs inverse stereographic formula. guess because std stereographic is projection onto z=-1
@@ -551,6 +556,7 @@
 
 
 <script type="text/javascript" src="lib/stats.min.js"></script>
+<script type="text/javascript" src="lib/gl-matrix-min.js"></script>
 <script type="text/javascript" src="utils/webgl_utils.js"></script>
 <script type="text/javascript" src="data/quad.js"></script>
 
@@ -582,7 +588,7 @@ function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
 	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch9-fs",{
 					attributes:["aVertexPosition"],
-					uniforms:["fovScale","rayStartIn"]
+					uniforms:["uMVMatrix","fovScale","rayStartIn"]
 					});
 }
 
@@ -650,7 +656,7 @@ function prepBuffersForDrawing(bufferObj, shaderProg, usesCubeMap){
 	//gl.uniformMatrix4fv(shaderProg.uniforms.uPMatrix, false, pMatrix);
 }
 function drawObjectFromPreppedBuffers(bufferObj, shaderProg){
-	//gl.uniformMatrix4fv(shaderProg.uniforms.uMVMatrix, false, mvMatrix);
+	gl.uniformMatrix4fv(shaderProg.uniforms.uMVMatrix, false, mvMatrix);
 	gl.drawElements(gl.TRIANGLES, bufferObj.vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 }
 
@@ -679,6 +685,16 @@ function drawScene(){
 //first get a gl window with some clearcolor
 
 var camPos = [0,0,0];
+var mvMatrix = mat4.create();
+mat4.identity(mvMatrix);
+
+var mouseInfo = {
+	x:0,
+	y:0,
+	dragging: false,
+	lastPointingDir:{},
+	currentPointingDir:{x:0,y:0,z:1,w:1}
+};
 
 function init(){
 
@@ -686,10 +702,17 @@ function init(){
 		console.log(e.keyCode);
 		//WASD = 87,65,83,68
 		var camStep = 0.01;
-		if (e.keyCode == 87){camPos[2]+=camStep;}
-		if (e.keyCode == 83){camPos[2]-=camStep;}
-		if (e.keyCode == 65){camPos[0]-=camStep;}
-		if (e.keyCode == 68){camPos[0]+=camStep;}
+		var camMove = [0,0,0];
+		if (e.keyCode == 87){camMove[2]+=camStep;}
+		if (e.keyCode == 83){camMove[2]-=camStep;}
+		if (e.keyCode == 65){camMove[0]-=camStep;}
+		if (e.keyCode == 68){camMove[0]+=camStep;}
+		//move camPos in camera direction. TODO just use mvMatrix.
+		//probably neater way to do this, but
+		camPos[0] += camMove[0]*mvMatrix[0] + camMove[1]*mvMatrix[4] + + camMove[2]*mvMatrix[8];
+		camPos[1] += camMove[0]*mvMatrix[1] + camMove[1]*mvMatrix[5] + + camMove[2]*mvMatrix[9];
+		camPos[2] += camMove[0]*mvMatrix[2] + camMove[1]*mvMatrix[6] + + camMove[2]*mvMatrix[10];
+		
 	});
 
 	stats = new Stats();
@@ -697,6 +720,53 @@ function init(){
 	document.body.appendChild( stats.dom );
 
 	canvas = document.getElementById("mycanvas");
+	
+	
+	//mouse code copied from 3sphere-explorer
+	canvas.addEventListener("mousedown", function(evt){
+		mouseInfo.x = evt.offsetX;
+		mouseInfo.y = evt.offsetY;
+		mouseInfo.dragging = true;
+		mouseInfo.lastPointingDir = getPointingDirectionFromScreenCoordinate({x:mouseInfo.x, y: mouseInfo.y});
+	});
+	canvas.addEventListener("mouseup", function(evt){
+		mouseInfo.dragging = false;
+	});
+	canvas.addEventListener("mouseout", function(evt){
+		mouseInfo.dragging = false;
+	});
+	canvas.addEventListener("mousemove", function(evt){
+		mouseInfo.currentPointingDir = getPointingDirectionFromScreenCoordinate({x:evt.offsetX, y: evt.offsetY});
+		if (mouseInfo.dragging){
+			var pointingDir = mouseInfo.currentPointingDir;
+			//console.log("pointingDir = " + pointingDir);
+			
+			//get the direction of current and previous mouse position.
+			//do a cross product to work out the angle rotated
+			//and rotate the player by this amount
+			
+			var crossProd = crossProductHomgenous(pointingDir, mouseInfo.lastPointingDir);
+			mouseInfo.lastPointingDir = pointingDir;
+			
+			//rotate player 
+			//guess have signs here because of unplanned handedness of screen, 3d co-ord systems
+			//note switched some signs vs 3sphere-explorer version!
+			var rotateAmt = [-crossProd.x / crossProd.w, crossProd.y / crossProd.w, -crossProd.z / crossProd.w];
+			rotatePlayer(rotateAmt);
+			
+		}
+	});
+	function rotatePlayer(rotateAmt){
+		//modify mvMatrix
+		//glmatrix annoyingly takes an axis and angle, rather than axis*angle.
+		//so have to do some bollocks
+		var vecLength = rotateAmt.reduce(function(accumulator, currentValue){return accumulator + currentValue*currentValue;},0);
+		vecLength=Math.sqrt(vecLength);
+		var axis = rotateAmt.map(function(currentValue){return currentValue/vecLength;});
+
+		mat4.rotate(mvMatrix,vecLength,axis);	
+	}
+	
 	initGL();
 	
 	//try clearing to green
@@ -708,6 +778,40 @@ function init(){
 	gl.disable(gl.DEPTH_TEST);
 
 	requestAnimationFrame(drawScene);
+	
+	
+	//to facilitate mouse drag to rotate (copied from 3sphere-explorer)
+	//TODO have this work with a stereographic projection camera (or something inbetween)
+	//should look at webgl-wideanglecamera project.
+	var mainCamFov=90.0;	//TODO configurable FOV 
+	
+	function getPointingDirectionFromScreenCoordinate(coords){
+		var maxyvert = 1.0;	
+		var maxxvert = screenAspect;
+		
+		var xpos = maxxvert*(coords.x*2.0/gl.viewportWidth   -1.0 );
+		var ypos = maxyvert*(coords.y*2.0/gl.viewportHeight   -1.0 );
+		var radsq = xpos*xpos + ypos*ypos;
+		var zpos = 1.0/Math.tan(mainCamFov*Math.PI/360); //TODO precalc
+
+		//normalise - use sending back homogenous co-ords because maybe a tiny amount more efficient since cross producting anyway
+		var mag= Math.sqrt(radsq + zpos*zpos);
+		
+		return {
+			x: xpos,
+			y: ypos,
+			z: zpos,
+			w: mag
+		}
+	}
+	function crossProductHomgenous(dir1, dir2){
+		var output ={};
+		output.x = dir1.y * dir2.z - dir1.z * dir2.y; 
+		output.y = dir1.z * dir2.x - dir1.x * dir2.z; 
+		output.z = dir1.x * dir2.y - dir1.y * dir2.x;
+		output.w = dir1.w * dir2.w;
+		return output;
+	}
 }
 
 
