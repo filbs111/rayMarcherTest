@@ -449,7 +449,7 @@
 
 	#define RAYSTEPSI 64
 	#define RAYSTEPSF 64.0
-	#define RAYTERMINCOND 0.0002
+	#define RAYTERMINCOND 0.001
 	
 	#define ITERS 16
 	#define SCALE -1.75
@@ -670,14 +670,27 @@ function drawScene(){
 	
 	gl.uniform3fv(activeShaderProgram.uniforms.fovScale, [gl.viewportWidth/gl.viewportHeight,1,1]);
 	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,Math.random()]);
-	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.0005 % 4]);
+	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.0005 % 4]);
+	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, camPos);
 	
 	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 }
 
 //first get a gl window with some clearcolor
 
+var camPos = [0,0,0];
+
 function init(){
+
+	window.addEventListener("keydown",function(e){
+		console.log(e.keyCode);
+		//WASD = 87,65,83,68
+		var camStep = 0.01;
+		if (e.keyCode == 87){camPos[2]+=camStep;}
+		if (e.keyCode == 83){camPos[2]-=camStep;}
+		if (e.keyCode == 65){camPos[0]-=camStep;}
+		if (e.keyCode == 68){camPos[0]+=camStep;}
+	});
 
 	stats = new Stats();
 	stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
