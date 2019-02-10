@@ -346,11 +346,21 @@
 		
 		vec3 toObjectVec = rayPos.xyz - theTorus;
 		vec3 absVec = abs(toObjectVec);
+		
+		//float cubsdf = max(absVec.z,maxxy)-0.75;
+		float cubsdf = length(max(absVec-vec3(0.75),0.0));	//more accurate. how does speed compare? todo use like this for holes? 
+		//float cubsdf = length(max(absVec-vec3(0.75),0.0))-0.15;	//round edge! 
+		
+		//if (min(absVec.z,min(absVec.x,absVec.y))<0.1){cubsdf += 0.01;}	//abuse of "sdf" -> dark energy effect!!
+		
+		if (cubsdf>0.005){return cubsdf;}	//early exit if sufficiently outside cube.	what is ideal value?
+		
 		float maxxy = max(absVec.x,absVec.y);	//square hole
 		float maxxz = max(absVec.x,absVec.z);	//square hole
 		float maxyz = max(absVec.y,absVec.z);	//square hole
 		float minhole = min(min(maxxy,maxxz),maxyz);
-		float cubsdf = max(max(absVec.z,maxxy)-0.75 , 0.25-minhole);
+		
+		cubsdf = max( cubsdf , 0.25-minhole);
 		
 		//chop smaller holes out TODO incorporate 1st hole cuts into this (above)
 		
@@ -363,6 +373,10 @@
 			if (ii==numIters){break;}
 			divideFactor*=3.0;
 			toObjectVec*=3.0;
+			
+			//bodge for interesting
+			//toObjectVec+=vec3(2.2,5.1,1.1);
+			
 			toObjectVec = mod(toObjectVec+0.75,1.5)-0.75;
 			absVec = abs(toObjectVec);
 			maxxy = max(absVec.x,absVec.y);	//square hole
