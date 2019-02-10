@@ -394,7 +394,14 @@
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
 		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
-		vec4 rayDir=vec4(normalize(mynum),1.0);
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+		//stereographic projection. see https://en.wikipedia.org/wiki/Stereographic_projection
+		vec3 mynumAdj = mynum/mynum.z;	//adjust to make z 1. can still adjust uniform to change scaling
+		float rsq = mynumAdj.x*mynumAdj.x +mynumAdj.y*mynumAdj.y;	//TODO better glsl formulation? 
+			//length of below is rsq+1. is manual normalising better than calling normalize()?
+		float denom = 1.0/(rsq+1.0);
+		vec4 rayDir = vec4( mynumAdj*vec3(2.0,2.0,1.0-rsq)*denom , 1.0);	//-ve z vs inverse stereographic formula. guess because std stereographic is projection onto z=-1
 		
 		float numSteps=64.0;
 		vec3 toTorus;
@@ -411,6 +418,7 @@
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
 			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 					//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
+					//TODO should use something else for stereographic projection camera (relates to size of pixel) 
 			rayPos+=cubsdf*rayDir;
 		}
 		
