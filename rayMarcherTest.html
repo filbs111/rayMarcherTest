@@ -447,13 +447,13 @@
 	//basically copied from Rrola's code here http://www.fractalforums.com/3d-fractal-generation/a-mandelbox-distance-estimate-formula/15/
 	//picked that because alter in thread, guess better optimised than earlier.
 
-	#define RAYSTEPSI 32
-	#define RAYSTEPSF 32.0
-	#define RAYTERMINCOND 0.005
+	#define RAYSTEPSI 64
+	#define RAYSTEPSF 64.0
+	#define RAYTERMINCOND 0.0002
 	
 	#define ITERS 16
 	#define SCALE -1.75
-	#define MR2 0.01
+	#define MR2 0.001
 	
 	#define C1 2.75
 	//C1 = abs(SCALE-1.0);
@@ -540,7 +540,7 @@
 		
 		gl_FragColor = vec4(vec3(mycol*mycol,mycol,mycol)*lightval,1.0);
 		
-		//return;
+		return;
 		//override with debug rendering
 		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
 		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
@@ -670,8 +670,7 @@ function drawScene(){
 	
 	gl.uniform3fv(activeShaderProgram.uniforms.fovScale, [gl.viewportWidth/gl.viewportHeight,1,1]);
 	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,Math.random()]);
-	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.002 % 8]);
-	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.00025 % 2]);
+	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.0005 % 4]);
 	
 	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 }
