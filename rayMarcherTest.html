@@ -170,7 +170,7 @@
 			//rayPos = rayDir*rayPos.w;	//should have no effect
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
+			if (toSphere<0.005*rayPos.w){numSteps=float(ii)+(toSphere/(0.005*rayPos.w));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 		}
 		//gl_FragColor = vec4(vec3(max(0.0,1.0-0.004*rayPos.w)),1.0);
 		float mycol=max(0.0,1.0-numSteps/64.0);
@@ -205,7 +205,7 @@
 			toSphere = length(vec2(rad,toTorus.z)) -0.25;
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (toSphere<0.005*rayPos.z){numSteps=float(ii)+(toSphere/(0.005*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
+			if (toSphere<0.005*rayPos.w){numSteps=float(ii)+(toSphere/(0.005*rayPos.w));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 			
 			rayPos+=toSphere*rayDir;
 		}
@@ -285,7 +285,7 @@
 			cubsdf = max(cubsdf , (0.25-minhole)/3.0);
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
+			if (cubsdf<0.00025*rayPos.w){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.w));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
 					//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
 			rayPos+=cubsdf*rayDir;
 		}
@@ -392,21 +392,22 @@
 		}
 		
 		return cubsdf;
-		
-		
 	}
 	
 	void main(void) {
 		//fixed number of iterations raymarch. colour at end relates to distance marched (and tends to some value as -> inf)
 		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
-		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		//stereographic projection. see https://en.wikipedia.org/wiki/Stereographic_projection
+		/*
 		vec3 mynumAdj = mynum/mynum.z;	//adjust to make z 1. can still adjust uniform to change scaling
 		float rsq = dot(mynumAdj.xy,mynumAdj.xy); 
 			//length of below is rsq+1. is manual normalising better than calling normalize()?
 		float denom = 1.0/(rsq+1.0);
 		vec4 rayDir = vec4( mynumAdj*vec3(2.0,2.0,1.0-rsq)*denom , 1.0);	//-ve z vs inverse stereographic formula. guess because std stereographic is projection onto z=-1
+		*/
+		//todo adjust stereographic projection for rotated camera
 		
 		float numSteps=64.0;
 		vec3 toTorus;
@@ -421,7 +422,7 @@
 			cubsdf = sdfFunc(rayPos);
 			
 			//if (toSphere<0.005*rayPos.z){numSteps=float(ii);break;}	//arbitary small number. 
-			if (cubsdf<0.00025*rayPos.z){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.z));break;}	//guess. smoother. TODO should be camera z ( since have nonzero raystart)
+			if (cubsdf<0.00025*rayPos.w){numSteps=float(ii)+(cubsdf/(0.00025*rayPos.w));break;}	//TODO should be camera z ( since have nonzero raystart)
 					//needed to make number smaller with cube to reduce artifacts (effectively wrong normals). rounding edges maybe better fix
 					//TODO should use something else for stereographic projection camera (relates to size of pixel) 
 			rayPos+=cubsdf*rayDir;
@@ -553,7 +554,7 @@
 
 </script>
 
-
+<script type="text/javascript" src="lib/dat.gui.min.js"></script>
 <script type="text/javascript" src="lib/stats.min.js"></script>
 <script type="text/javascript" src="lib/gl-matrix-min.js"></script>
 <script type="text/javascript" src="utils/webgl_utils.js"></script>
@@ -585,9 +586,19 @@ then can look at
 var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
-	shaderPrograms.flat = loadShader( "shader-fullscreen-vs", "shader-raymarch9-fs",{
-					attributes:["aVertexPosition"],
-					uniforms:["uMVMatrix","fovScale","rayStartIn"]
+	var standardAttributes = ["aVertexPosition"];
+	var standardUniforms = ["uMVMatrix","fovScale","rayStartIn"];
+	shaderPrograms.tori = loadShader( "shader-fullscreen-vs", "shader-raymarch6-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.mengercubes = loadShader( "shader-fullscreen-vs", "shader-raymarch8-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.mandelbox = loadShader( "shader-fullscreen-vs", "shader-raymarch9-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
 					});
 }
 
@@ -670,7 +681,7 @@ function drawScene(){
 
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	var activeShaderProgram = shaderPrograms.flat;
+	var activeShaderProgram = shaderPrograms[guiParams.shader];
 	gl.useProgram(activeShaderProgram);
 	
 	gl.uniform3fv(activeShaderProgram.uniforms.fovScale, [gl.viewportWidth/gl.viewportHeight,1,1]);
@@ -695,12 +706,14 @@ var mouseInfo = {
 	currentPointingDir:{x:0,y:0,z:1,w:1}
 };
 
+var guiParams={};
+
 function init(){
 
 	window.addEventListener("keydown",function(e){
 		console.log(e.keyCode);
 		//WASD = 87,65,83,68
-		var camStep = 0.01;
+		var camStep = 0.02;
 		var camMove = [0,0,0];
 		if (e.keyCode == 87){camMove[2]+=camStep;}
 		if (e.keyCode == 83){camMove[2]-=camStep;}
@@ -717,9 +730,8 @@ function init(){
 	stats = new Stats();
 	stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
 	document.body.appendChild( stats.dom );
-
-	canvas = document.getElementById("mycanvas");
 	
+	canvas = document.getElementById("mycanvas");
 	
 	//mouse code copied from 3sphere-explorer
 	canvas.addEventListener("mousedown", function(evt){
@@ -776,6 +788,13 @@ function init(){
 	initBuffers();
 	gl.disable(gl.DEPTH_TEST);
 
+	
+	var gui = new dat.GUI();
+	var shadersList = Object.keys(shaderPrograms)
+	guiParams['shader']=shadersList[2];
+	gui.add(guiParams,'shader',shadersList);
+
+	
 	requestAnimationFrame(drawScene);
 	
 	
