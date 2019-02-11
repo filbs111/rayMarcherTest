@@ -832,20 +832,26 @@ var guiParams={};
 function init(){
 
 	window.addEventListener("keydown",function(e){
-		console.log(e.keyCode);
+		var keyCode=e.keyCode;
+		console.log(keyCode);
 		//WASD = 87,65,83,68
 		var camStep = 0.02;
 		var camMove = [0,0,0];
-		if (e.keyCode == 87){camMove[2]+=camStep;}
-		if (e.keyCode == 83){camMove[2]-=camStep;}
-		if (e.keyCode == 65){camMove[0]-=camStep;}
-		if (e.keyCode == 68){camMove[0]+=camStep;}
+		if (keyCode == 87){camMove[2]+=camStep;}
+		if (keyCode == 83){camMove[2]-=camStep;}
+		if (keyCode == 65){camMove[0]-=camStep;}
+		if (keyCode == 68){camMove[0]+=camStep;}
 		//move camPos in camera direction. TODO just use mvMatrix.
 		//probably neater way to do this, but
 		camPos[0] += camMove[0]*mvMatrix[0] + camMove[1]*mvMatrix[4] + + camMove[2]*mvMatrix[8];
 		camPos[1] += camMove[0]*mvMatrix[1] + camMove[1]*mvMatrix[5] + + camMove[2]*mvMatrix[9];
 		camPos[2] += camMove[0]*mvMatrix[2] + camMove[1]*mvMatrix[6] + + camMove[2]*mvMatrix[10];
 		
+		var rollSpd = 0.02;
+		var rollAmt = 0;
+		if (keyCode == 69){rollAmt-=rollSpd;}
+		if (keyCode == 81){rollAmt+=rollSpd;}
+		rotatePlayer([0,0,rollAmt]);
 	});
 
 	stats = new Stats();
