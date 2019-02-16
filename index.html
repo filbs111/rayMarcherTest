@@ -458,13 +458,13 @@
 	#define RAYTERMINCOND 0.001
 	
 	#define ITERS 16
-	#define SCALE -1.75
+	#define SCALE 2.0
 	#define MR2 0.001
 	
-	#define C1 2.75
+	#define C1 1.0
 	//C1 = abs(SCALE-1.0);
 	
-	#define CUBELIMIT 2.0 
+	#define CUBELIMIT 6.0 
 	
 	//For scale < -1 the mandelbox sides have length 4 and for 1 < scale <= 4?n+1 they have length 4(scale+1)/(scale-1)
 	// what is n ? assuming condition correct (at least, n>=1) 
@@ -514,9 +514,7 @@
 		float cubsdf;
 		float numSteps=RAYSTEPSF;
 		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
-		
-		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
-		
+				
 		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		for (int ii=0;ii<RAYSTEPSI;ii++){
@@ -611,9 +609,7 @@
 		float cubsdf;
 		float numSteps=RAYSTEPSF;
 		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
-		
-		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
-		
+				
 		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		for (int ii=0;ii<RAYSTEPSI;ii++){
@@ -815,7 +811,7 @@ function drawScene(){
 
 //first get a gl window with some clearcolor
 
-var camPos = [0,0,0];
+var camPos = [0,0,-15];
 var mvMatrix = mat4.create();
 mat4.identity(mvMatrix);
 
@@ -917,13 +913,13 @@ function init(){
 	
 	var gui = new dat.GUI();
 	var shadersList = Object.keys(shaderPrograms)
-	guiParams['shader']=shadersList[2];
+	guiParams['shader']=shadersList[3];
 	gui.add(guiParams,'shader',shadersList);
 
-	guiParams['absMandelboxScale']=1.75;
-	guiParams['signMandelboxScale']=-1;
+	guiParams['absMandelboxScale']=2;
+	guiParams['signMandelboxScale']=1;
 	
-	gui.add(guiParams,'absMandelboxScale',1.5,6);
+	gui.add(guiParams,'absMandelboxScale',1.5,6,0.1);
 	gui.add(guiParams,'signMandelboxScale',[-1,1]);
 	
 	requestAnimationFrame(drawScene);
