@@ -509,14 +509,17 @@
 	vec4 scalevec;
 	float C2;	//guess faster to hard code than calculate in main;
 
-	float sdfFunc(in vec4 position){
+	float mbSdfFunc(in vec4 position){
 		//should calculate halflength outside (eg by define or uniform)
 		vec3 distFromSides = max(abs(position.xyz) - CUBELIMIT , 0.0);
 
 		float distFromCube = length(distFromSides);
-		if (distFromCube>0.5){return distFromCube;}	//added some buffer outside - iterations outside this fast, buffer allows marching through cube limit to inside
+		//if (distFromCube>0.4){return distFromCube;}	//added some buffer outside - iterations outside this fast, buffer allows marching through cube limit to inside
 													//TODO find best number
-	
+		float borderSize = 0.5;
+		if (distFromCube>borderSize){return distFromCube;}
+		distFromCube=max(distFromCube,0.0);	//to use as a blend factor to make confinuous SDF
+		
 	  // distance estimate
 	  vec4 p = vec4(position.xyz, 1.0), p0 = vec4(position.xyz, 1.0);  // p.w is knighty's DEfactor
 	  for (int i=0; i<ITERS; i++) {	//hard coded iters? can set by define?
@@ -526,9 +529,32 @@
 		p.xyzw = p*scalevec + p0;  // mad4
 	  }
 		
-	  return (length(p.xyz) - C1) / p.w - C2;
-	  //return -(length(p.xyz) - C1) / p.w - C2;
-	  //return max( veclength , (length(p.xyz) - C1) / p.w - C2 );	//this SHOULD work...
+	  //return (length(p.xyz) - C1) / p.w - C2;
+	  
+	  //make sdf func continous to reduce banding in num steps ?
+	  float unmodifiedSdf = (length(p.xyz) - C1) / p.w - C2;
+	  return mix(unmodifiedSdf,distFromCube,distFromCube/borderSize);
+	}
+	
+	float sdfFunc(in vec4 position){
+		float mbSdf = mbSdfFunc(position);
+		//return mbSdf;	//retain earlier behaviour, no player object 
+		
+		/*
+		//get some new sdffunc for a player object
+		float playerSdf = length(position.xyz - vec3(8.0,0.0,0.0)) - 1.0;
+		return min(mbSdf,playerSdf);
+		*/
+		
+		//pyramid player object.
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		return min(mbSdf,playerSdf);
 	}
 	
 	void main(void){
@@ -612,7 +638,7 @@
 	vec4 scalevec;
 	float C2;	//guess faster to hard code than calculate in main;
 
-	float sdfFunc(in vec4 position){
+	float mbSdfFunc(in vec4 position){
 		//should calculate halflength outside (eg by define or uniform)
 		vec3 distFromSides = max(abs(position.xyz) - uCubeLimit , 0.0);
 
@@ -630,6 +656,27 @@
 	  }
 		
 	  return (length(p.xyz) - uC1) / p.w - C2;
+	}
+	
+	float sdfFunc(in vec4 position){
+		float mbSdf = mbSdfFunc(position);
+		//return mbSdf;	//retain earlier behaviour, no player object 
+		
+		/*
+		//get some new sdffunc for a player object
+		float playerSdf = length(position.xyz - vec3(8.0,0.0,0.0)) - 1.0;
+		return min(mbSdf,playerSdf);
+		*/
+		
+		//pyramid player object.
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		return min(mbSdf,playerSdf);
 	}
 	
 	void main(void){
@@ -868,7 +915,7 @@ function init(){
 		var keyCode=e.keyCode;
 		console.log(keyCode);
 		//WASD = 87,65,83,68
-		var camStep = 0.02;
+		var camStep = 0.1;
 		var camMove = [0,0,0];
 		if (keyCode == 87){camMove[2]+=camStep;}
 		if (keyCode == 83){camMove[2]-=camStep;}
