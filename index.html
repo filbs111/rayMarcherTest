@@ -44,6 +44,7 @@
 <!-- super simple, just flat colour, then shade colour across image to check passing through vertex position stuff ok-->
 <script id="shader-flatcolor-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -57,6 +58,7 @@
 <!-- single sphere raymarch-->
 <script id="shader-raymarch1-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -79,6 +81,7 @@
 <!-- square array spheres-->
 <script id="shader-raymarch2-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -102,6 +105,7 @@
 <!-- cube array spheres-->
 <script id="shader-raymarch3-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -128,6 +132,7 @@
 <!-- cube array spheres, break if close-->
 <script id="shader-raymarch4-fs" type="x-shader/x-fragment">
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -158,6 +163,7 @@
 <script id="shader-raymarch5-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	//precision highp float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -193,6 +199,7 @@
 <script id="shader-raymarch6-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	//precision highp float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -203,7 +210,10 @@
 		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-		vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		vec4 rayDir = vec4( normalize(mynum*vec3(2.0*mynuminvsq) - vCameraDirection*uCamCurve) , 1.0);	//continuous rectilinear to stereographic. (camcurve 0-1)
+																								//TODO consistent central angular resolution
+																								//TODO is this equivalent to projection from variable position in sphere onto plane?
 		
 		vec3 theTorus=vec3(2.0,2.0,4.0);	//position a sphere in view
 		float numSteps=64.0;
@@ -251,6 +261,7 @@
 <script id="shader-raymarch7-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	//precision highp float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -355,6 +366,7 @@
 <script id="shader-raymarch8-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	//precision highp float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -417,7 +429,8 @@
 		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-		vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);	//stereographic cam
+		vec4 rayDir = vec4( normalize(mynum*vec3(2.0*mynuminvsq) - vCameraDirection*uCamCurve) , 1.0);
 		
 		float numSteps=64.0;
 		vec3 toTorus;
@@ -488,6 +501,7 @@
 	// scale 4, length 4(5/3) -> 6.6666				half length = 3.333
 	
 	precision mediump float;
+	uniform float uCamCurve;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -529,7 +543,8 @@
 		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-		vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);	//stereographic cam
+		vec4 rayDir = vec4( normalize(mynum*vec3(2.0*mynuminvsq) - vCameraDirection*uCamCurve) , 1.0);
 		
 		for (int ii=0;ii<RAYSTEPSI;ii++){
 			cubsdf = sdfFunc(rayPos);
@@ -588,6 +603,7 @@
 	uniform float uMandelboxScale;
 	uniform float uC1;
 	uniform float uCubeLimit;
+	uniform float uCamCurve;
 	
 	varying vec3 mynum;
 	varying vec3 rayStart;
@@ -628,7 +644,8 @@
 		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
 		float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-		vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);	//stereographic cam
+		vec4 rayDir = vec4( normalize(mynum*vec3(2.0*mynuminvsq) - vCameraDirection*uCamCurve) , 1.0);
 		
 		for (int ii=0;ii<RAYSTEPSI;ii++){
 			cubsdf = sdfFunc(rayPos);
@@ -698,7 +715,7 @@ var shaderPrograms={};
 function initShaders(){
 	//shaderProgramFlat = loadShader( "shader-fullscreen-vs", "shader-flatcolor-fs",{
 	var standardAttributes = ["aVertexPosition"];
-	var standardUniforms = ["uMVMatrix","fovScale","rayStartIn"];
+	var standardUniforms = ["uMVMatrix","fovScale","rayStartIn","uCamCurve"];
 	shaderPrograms.tori = loadShader( "shader-fullscreen-vs", "shader-raymarch6-fs",{
 					attributes:standardAttributes,
 					uniforms:standardUniforms
@@ -713,7 +730,7 @@ function initShaders(){
 					});
 	shaderPrograms.mandelboxConfigurable = loadShader( "shader-fullscreen-vs", "shader-raymarch9a-fs",{
 					attributes:standardAttributes,
-					uniforms:["uMVMatrix","fovScale","rayStartIn","uMandelboxScale","uC1","uCubeLimit"]
+					uniforms:["uMVMatrix","fovScale","rayStartIn","uCamCurve","uMandelboxScale","uC1","uCubeLimit"]
 					});
 }
 
@@ -806,6 +823,8 @@ function drawScene(){
 		gl.uniform1f(activeShaderProgram.uniforms.uC1,Math.abs(mbScale-1));
 		gl.uniform1f(activeShaderProgram.uniforms.uCubeLimit, (mbScale<0) ? 2: 2*(mbScale+1)/(mbScale-1));	//strange. -ve is always smaller than +ve. bug?
 	}
+	
+	gl.uniform1f(activeShaderProgram.uniforms.uCamCurve, guiParams.camCurve);
 	
 	//For scale < -1 the mandelbox sides have length 4 and for 1 < scale <= 4?n+1 they have length 4(scale+1)/(scale-1)
 	// what is n ? assuming condition correct (at least, n>=1) 
@@ -931,6 +950,10 @@ function init(){
 	
 	var gui = new dat.GUI();
 	var shadersList = Object.keys(shaderPrograms)
+	
+	guiParams['camCurve']=0.0;
+	gui.add(guiParams,'camCurve',0,1,0.1);
+	
 	guiParams['shader']=shadersList[3];
 	gui.add(guiParams,'shader',shadersList);
 
