@@ -949,7 +949,6 @@ function drawObjectFromPreppedBuffers(bufferObj, shaderProg){
 }
 
 function drawScene(){
-	requestAnimationFrame(drawScene);
 	stats.end();
 	stats.begin();
 
@@ -1008,30 +1007,63 @@ var mouseInfo = {
 
 var guiParams={};
 
-function init(){
 
-	window.addEventListener("keydown",function(e){
-		var keyCode=e.keyCode;
-		console.log(keyCode);
-		//WASD = 87,65,83,68
-		var camStep = 0.1;
-		var camMove = [0,0,0];
-		if (keyCode == 87){camMove[2]+=camStep;}
-		if (keyCode == 83){camMove[2]-=camStep;}
-		if (keyCode == 65){camMove[0]-=camStep;}
-		if (keyCode == 68){camMove[0]+=camStep;}
-		//move camPos in camera direction. TODO just use mvMatrix.
-		//probably neater way to do this, but
-		camPos[0] += camMove[0]*mvMatrix[0] + camMove[1]*mvMatrix[4] + + camMove[2]*mvMatrix[8];
-		camPos[1] += camMove[0]*mvMatrix[1] + camMove[1]*mvMatrix[5] + + camMove[2]*mvMatrix[9];
-		camPos[2] += camMove[0]*mvMatrix[2] + camMove[1]*mvMatrix[6] + + camMove[2]*mvMatrix[10];
+
+function init(){
+	
+	var iterateMechanics = (function generateIterateMechanics(){
+		var newTime = (new Date()).getTime();
+		var camSpeed = [0,0,0];
 		
-		var rollSpd = 0.02;
-		var rollAmt = 0;
-		if (keyCode == 69){rollAmt-=rollSpd;}
-		if (keyCode == 81){rollAmt+=rollSpd;}
-		rotatePlayer([0,0,rollAmt]);
-	});
+		window.addEventListener("keydown",function(e){
+			var keyCode=e.keyCode;
+			console.log(keyCode);
+			//WASD = 87,65,83,68
+			var camStep = 0.01;
+			
+			var camMove = [0,0,0];
+			if (keyCode == 87){camMove[2]+=camStep;}
+			if (keyCode == 83){camMove[2]-=camStep;}
+			if (keyCode == 65){camMove[0]-=camStep;}
+			if (keyCode == 68){camMove[0]+=camStep;}
+			
+			/*
+			//move camPos in camera direction. TODO just use mvMatrix.
+			//probably neater way to do this, but
+			camPos[0] += camMove[0]*mvMatrix[0] + camMove[1]*mvMatrix[4] + + camMove[2]*mvMatrix[8];
+			camPos[1] += camMove[0]*mvMatrix[1] + camMove[1]*mvMatrix[5] + + camMove[2]*mvMatrix[9];
+			camPos[2] += camMove[0]*mvMatrix[2] + camMove[1]*mvMatrix[6] + + camMove[2]*mvMatrix[10];
+			*/
+			
+			//add to camSpeed instead
+			camSpeed[0] += camMove[0]*mvMatrix[0] + camMove[1]*mvMatrix[4] + + camMove[2]*mvMatrix[8];
+			camSpeed[1] += camMove[0]*mvMatrix[1] + camMove[1]*mvMatrix[5] + + camMove[2]*mvMatrix[9];
+			camSpeed[2] += camMove[0]*mvMatrix[2] + camMove[1]*mvMatrix[6] + + camMove[2]*mvMatrix[10];
+			
+			var rollSpd = 0.02;
+			var rollAmt = 0;
+			if (keyCode == 69){rollAmt-=rollSpd;}
+			if (keyCode == 81){rollAmt+=rollSpd;}
+			rotatePlayer([0,0,rollAmt]);
+		});
+		
+		return function(){
+			var oldTime = newTime;
+			newTime = (new Date()).getTime();
+			var timeElapsed = Math.min(newTime - oldTime, 1000);	//1s max
+			//exponential decay of speed towards desired speed. TODO proper movement integration, but doesn't really matter
+			var decayFactor = Math.pow(0.99,timeElapsed);
+			
+			camSpeed = camSpeed.map(function(val,ii){return val*decayFactor;});	//TODO keystate = target value... + (1-decayFactor)*camMove[ii];});
+			//camSpeed = camSpeed.map(function(val,ii){return camMove[ii];});
+			camPos = camPos.map(function(val,ii){return val+timeElapsed*camSpeed[ii];});
+			//camPos = camPos.map(function(val,ii){return val;});
+				console.log(oldTime);
+				console.log(newTime);
+		
+		}
+	})();
+	
 
 	stats = new Stats();
 	stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
@@ -1109,7 +1141,13 @@ function init(){
 	gui.add(guiParams,'absMandelboxScale',1.5,6,0.1);
 	gui.add(guiParams,'signMandelboxScale',[-1,1]);
 	
-	requestAnimationFrame(drawScene);
+	requestAnimationFrame(itMechanicsAndDrawScene);
+	
+	function itMechanicsAndDrawScene(){
+		requestAnimationFrame(itMechanicsAndDrawScene);
+		iterateMechanics();
+		drawScene();
+	}
 	
 	//to facilitate mouse drag to rotate (copied from 3sphere-explorer)
 	//TODO have this work with a stereographic projection camera (or something inbetween)
