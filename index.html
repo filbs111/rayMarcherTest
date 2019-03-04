@@ -1318,13 +1318,15 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		//quick step to upper bounding plane (see previous shaders)
 		if (rayDir.y<0.0){
 			//going downward.
-			if (rayPos.y>-8.5){
-				rayPos-=rayDir*((rayPos.y+8.5)/rayDir.y);
+			//float planeBound = -8.5;	//seems sand heightmap doesn't go all the way to white
+			float planeBound = -8.;
+			if (rayPos.y>planeBound){
+				rayPos-=rayDir*((rayPos.y-planeBound)/rayDir.y);
 			}
 		}
 		
-		
-		float coneGrad=0.7;	//trial and error it for now. bigger safer and slower
+		//float coneGrad=0.7;	//trial and error it for now. bigger safer and slower
+		float coneGrad=0.4;	//trial and error it for now. bigger safer and slower
 
 		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
 		
@@ -1438,8 +1440,8 @@ function initShaders(){
 var texture;
 
 function initTexture(){
-	texture = makeTexture("data/terrain/turbulent-seamless.png");
-	//texture = makeTexture("data/terrain/seamless_tileable_voronoi_bump_displacement_map_by_mcasual_dbr4tgs.png");
+	//texture = makeTexture("data/terrain/turbulent-seamless.png");
+	texture = makeTexture("data/terrain/seamless_tileable_voronoi_bump_displacement_map_by_mcasual_dbr4tgs.png");
 }
 
 function makeTexture(src) {	//to do OO
