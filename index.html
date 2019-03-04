@@ -859,6 +859,8 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 	
 	precision mediump float;
 	
+	uniform float uCamCurve;
+	
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -894,12 +896,16 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		
 		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
 
-		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
-	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
-		
-		
+		//variable camera rectilinear to stereographic, maintaining fixed angular res in centre of view. unoptimised code.
+		float var1 = uCamCurve*-0.125;
+		float var2 = 4.0;	//zoom
+		float mynumdotcamdir = dot(vCameraDirection,mynum);
+		vec3 plllpart = mynumdotcamdir*vCameraDirection;
+		vec3 perppart = mynum - plllpart;
+		float zpos = 2.0 + var1*(var2*var2*dot(perppart,perppart));
+		vec4 rayDir = vec4( normalize(var2*perppart + zpos*vCameraDirection), 1.0);
 		
 		//first, big step to upper bound of surface.
 		//todo make this switchable/alternate shader, to demo that range already better than sphere tracer
@@ -966,6 +972,8 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 	
 	precision mediump float;
 	
+	uniform float uCamCurve;
+	
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -1027,11 +1035,18 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		
 		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
 
-		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
-	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//variable camera rectilinear to stereographic, maintaining fixed angular res in centre of view. unoptimised code.
+		float var1 = uCamCurve*-0.125;
+		float var2 = 4.0;	//zoom
+		float mynumdotcamdir = dot(vCameraDirection,mynum);
+		vec3 plllpart = mynumdotcamdir*vCameraDirection;
+		vec3 perppart = mynum - plllpart;
+		float zpos = 2.0 + var1*(var2*var2*dot(perppart,perppart));
+		vec4 rayDir = vec4( normalize(var2*perppart + zpos*vCameraDirection), 1.0);
 		
+
 		float coneGrad=0.56568;	//AFAIK exact limiting gradient
 		//float coneGrad=0.1;	//too shallow. expect artifacts
 		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
@@ -1105,6 +1120,8 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 	
 	precision mediump float;
 	
+	uniform float uCamCurve;
+	
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -1168,10 +1185,16 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		
 		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
 
-		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
-	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//variable camera rectilinear to stereographic, maintaining fixed angular res in centre of view. unoptimised code.
+		float var1 = uCamCurve*-0.125;
+		float var2 = 4.0;	//zoom
+		float mynumdotcamdir = dot(vCameraDirection,mynum);
+		vec3 plllpart = mynumdotcamdir*vCameraDirection;
+		vec3 perppart = mynum - plllpart;
+		float zpos = 2.0 + var1*(var2*var2*dot(perppart,perppart));
+		vec4 rayDir = vec4( normalize(var2*perppart + zpos*vCameraDirection), 1.0);
 		
 		
 		//first, big step to upper bound of surface.
@@ -1242,6 +1265,7 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 	
 	precision mediump float;
 	
+	uniform float uCamCurve;
 	uniform sampler2D uSampler;
 	
 	varying vec3 mynum;
@@ -1279,10 +1303,16 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		
 		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
 
-		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
 		
-	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
-	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		//variable camera rectilinear to stereographic, maintaining fixed angular res in centre of view. unoptimised code.
+		float var1 = uCamCurve*-0.125;
+		float var2 = 4.0;	//zoom
+		float mynumdotcamdir = dot(vCameraDirection,mynum);
+		vec3 plllpart = mynumdotcamdir*vCameraDirection;
+		vec3 perppart = mynum - plllpart;
+		float zpos = 2.0 + var1*(var2*var2*dot(perppart,perppart));
+		vec4 rayDir = vec4( normalize(var2*perppart + zpos*vCameraDirection), 1.0);
 		
 		
 		//quick step to upper bounding plane (see previous shaders)
@@ -1400,7 +1430,7 @@ function initShaders(){
 					});
 	shaderPrograms.textureConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch11-fs",{
 					attributes:standardAttributes,
-					uniforms:["uMVMatrix","fovScale","rayStartIn","uSampler"]
+					uniforms:["uMVMatrix","fovScale","rayStartIn","uCamCurve","uSampler"]
 					});
 }
 
@@ -1630,9 +1660,6 @@ function init(){
 			//camSpeed = camSpeed.map(function(val,ii){return camMove[ii];});
 			camPos = camPos.map(function(val,ii){return val+timeElapsed*camSpeed[ii];});
 			//camPos = camPos.map(function(val,ii){return val;});
-				console.log(oldTime);
-				console.log(newTime);
-		
 		}
 	})();
 	
