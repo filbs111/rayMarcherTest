@@ -1273,7 +1273,7 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 	varying vec3 vCameraDirection;
 	
 	float pyramidSurfAltitude(in vec4 position){
-		return position.y+10.0-2.0*texture2D(uSampler, position.xz*0.015).x;
+		return position.y+10.0-4.0*texture2D(uSampler, position.xz*0.015).x;
 	}
 	
 	float marchFactor;
@@ -1319,14 +1319,14 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		if (rayDir.y<0.0){
 			//going downward.
 			//float planeBound = -8.5;	//seems sand heightmap doesn't go all the way to white
-			float planeBound = -8.;
+			float planeBound = -6.;
 			if (rayPos.y>planeBound){
 				rayPos-=rayDir*((rayPos.y-planeBound)/rayDir.y);
 			}
 		}
 		
 		//float coneGrad=0.7;	//trial and error it for now. bigger safer and slower
-		float coneGrad=0.4;	//trial and error it for now. bigger safer and slower
+		float coneGrad=1.0;	//trial and error it for now. bigger safer and slower
 
 		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
 		
@@ -1344,8 +1344,9 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
 		//if want to dot normal with direction, just do one sample
 		//todo make this neat by using a function for sdf, check no speed lost
-		float smallDisp = 0.0004;	//some arbitrary small number displacement. should be small but not run into float precision problems
+		float smallDisp = 0.1;	//some arbitrary small number displacement. should be small but not run into float precision problems
 									//runs into problems when ray pointed at empty space
+									//make bigger because constant gradient across pixel
 															
 		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
 		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
@@ -1441,7 +1442,8 @@ var texture;
 
 function initTexture(){
 	//texture = makeTexture("data/terrain/turbulent-seamless.png");
-	texture = makeTexture("data/terrain/seamless_tileable_voronoi_bump_displacement_map_by_mcasual_dbr4tgs.png");
+	//texture = makeTexture("data/terrain/seamless_tileable_voronoi_bump_displacement_map_by_mcasual_dbr4tgs.png");
+	texture = makeTexture("data/terrain/filterforge-jaggedrock.jpg");
 }
 
 function makeTexture(src) {	//to do OO
