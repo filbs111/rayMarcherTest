@@ -828,6 +828,514 @@
 </script>
 
 
+
+<!-- a cone tracer (this is still a raymarcher, not a cone marcher. cone and raymarchers are usually sphere tracers)
+basically would like to raymarch a surface texture, using an image texture. webgl1 doesn't support 3d textures, and would need to create them anyway
+idea is that if have some heightmap with a maximum gradient, then a conical tip with this gradient can touch the surface at any point. therefore can march within this cone. easy enough to test - just find the maximum gradient between any 2 pixels in the heightmap. (of order numpix) to get decent perf, should be pretty shallow. sand dunes texture maybe good for this.
+further optimisations?
+1) for looking angles steeper than max gradient, know will pass thru once. therefore might march further (eg with expectation surface is flat, ie twice "safe" distance.
+2) encode a cone angle (side steepness) along with the height in the map. requires more work at texture generation stage -  obvious auto-generation approach straightforward but slow ( order numpix^2 ). downside that need extra channel- not just using alpha channel for rgb texture or normalmap (normalmap maybe 2d is enough...)
+3) might (ab)use normal map- what's the widest cone aligned with normal that touches surface. maybe requires checking that such a cone exists! (does the ray exist?). maybe this not good- generally problem parts (that cause a lot of marches) are bits at top for ray skimming over, trivially, cone surface can't "go down" because assume surface repeats etc.
+4) ensure that surface hits bounding top plane frequently. therefore 6 should work well
+5) some more flexible bounding shape (while simple to calculate how far to march. cone+parabola? again more work at generation time. 
+6) starting at upper limit plane of surface should save many iterations.
+	basically take max of collision distance along ray for plane, sdf. should happen only one time rather than being in sdffunc. unnecessary if bounded by geometry,  
+		
+maybe has downside that will be harder to use conemarching for perf boost (vs quite neat in sphere tracer)
+
+initially can just do this for a virtual texture lookup - eg array of pyramids. should compare perf to spheretracer
+can get an effective sdf using this if have ray direction info
+
+eventually might wish to combo with "real" geometry so webgl default depth mapping works, and to reduce filled pixels.
+
+
+step1- a surface spheremarcher with a max gradient which should be reproducible using conetracing/virtual height map
+-->
+<script id="shader-raymarch10-fs" type="x-shader/x-fragment">
+
+	#define RAYSTEPSI 24
+	#define RAYSTEPSF 24.0
+	#define RAYTERMINCOND 0.001
+	
+	precision mediump float;
+	
+	varying vec3 mynum;
+	varying vec3 rayStart;
+	varying vec3 vCameraDirection;
+	
+	float pyramidSurfSdf(in vec4 position){
+		//initially simple surface
+	//	return position.y+10.0;	//+10.0 pushes surface down by 10
+		
+		//super simple surface - shallow sine wave. spheres aren't quite right - will be very wrong if sine wave steep
+		
+		return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		//return 0.85*(position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4));	//remove artifacts - really should be a better method to get sdf for sine waves. (look it up!)
+	}
+	
+	float sdfFunc(in vec4 position){
+		//pyramid player object.
+		
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		
+		return min(playerSdf, pyramidSurfSdf(position));
+	}
+	
+	void main(void){
+		float cubsdf=100000000.0;	//initialise some smthg since doing previousSdf (should be big. not zero because dividing by...)
+		float numSteps=RAYSTEPSF;
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		
+		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
+
+		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
+	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		
+		
+		
+		//first, big step to upper bound of surface.
+		//todo make this switchable/alternate shader, to demo that range already better than sphere tracer
+		//since return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		//min alt means highest surf . position.y +10 -1-1 = position.y+8
+		//ie surf is at y=-8
+		//this helps range hugely, but doesn't play nice with other object in scene (player pyramid)
+		//could make this check part of regular raymarch (step is max of conetrace and this calculation)
+		if (rayDir.y<0.0){
+			//going downward.
+			if (rayPos.y>-8.0){
+				rayPos-=rayDir*((rayPos.y+8.0)/rayDir.y);
+			}
+		}
+		
+		
+		
+		float previousSdf;
+		for (int ii=0;ii<RAYSTEPSI;ii++){
+			previousSdf = cubsdf;
+			cubsdf = sdfFunc(rayPos);
+			//other's sdf might not return 4th as length
+			
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
+			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
+			
+			rayPos+=cubsdf*rayDir;
+		}
+	
+	
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.0005;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+															
+		//rayPos+=vec4(0.0,smallDisp,0.0,0.0);
+		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!		
+		
+		float distanceDifference = sdfFunc(rayPos) - cubsdf;
+		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
+		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
+		
+		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		
+		return;
+		//override with debug rendering
+		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = 0.0;	
+		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
+	}
+
+
+</script>
+
+
+<!-- "cone tracer" equivalent of above-->
+<script id="shader-raymarch10a-fs" type="x-shader/x-fragment">
+
+	#define RAYSTEPSI 24
+	#define RAYSTEPSF 24.0
+	#define RAYTERMINCOND 0.001
+	
+	precision mediump float;
+	
+	varying vec3 mynum;
+	varying vec3 rayStart;
+	varying vec3 vCameraDirection;
+	
+	float pyramidSurfAltitude(in vec4 position){
+		//initially simple surface
+	//	return position.y+10.0;	//+10.0 pushes surface down by 10
+		
+		//super simple surface - shallow sine wave. 
+		return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		
+		//what is maximum gradient? 
+		//derivative of sin(kx) = ksinx . k=0.4 so max grad 0.4
+		//in 2 directions so 0.4*sqrt(2) = 0.56568
+	}
+	
+	float marchFactor;
+	
+	float pyramidSurfMarchdist(in vec4 position){
+		return marchFactor*pyramidSurfAltitude(position);	
+		
+		//assume some cone angle. initially try 45 degrees. 
+		//this should be precalculated since rayDir does not change. basically mapping alt to march distance. 
+		// for vertical, dist = alt
+		// for some cone angle... - dot(rayDir,conenorm) , which is, assuming cone normal in y direction
+		//   length(rayDir.xz)*coneOutNorm + rayDir.y*coneDownNorm
+		//	ray length scales as 1/that . to get correct scale constant, see that for ray pointing down:
+		// that = 1*coneDownNorm.
+		// therefore just make the cone normal not normalised. coneDownNorm = -1, coneOutNorm is cone gradient. ie for 45 deg, coneoutnorm=1.
+		
+		//therefore
+		// marchlength = alt / (length(rayDir.xz)*coneGrad - rayDir.y )
+		// 
+		//sensible to precalc marchFactor = 1/(length(rayDir.xz)*coneGrad - rayDir.y )
+			// then marchlength = alt*marchfactor
+			//note that marchfactor can be inf! guess should account for that earlier. hack to make work by just doing
+			//marchFactor = 1/max(smallPositiveNumber,(length(rayDir.xz)*coneGrad - rayDir.y ))
+			//really though should just be returning early
+	}
+	
+	float sdfFunc(in vec4 position){
+		//pyramid player object.
+		
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		
+		return min(playerSdf, pyramidSurfMarchdist(position));
+	}
+	
+	void main(void){
+		float cubsdf;
+		float numSteps=RAYSTEPSF;
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		
+		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
+
+		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
+	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		
+		float coneGrad=0.56568;	//AFAIK exact limiting gradient
+		//float coneGrad=0.1;	//too shallow. expect artifacts
+		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
+		
+		
+		
+		//first, big step to upper bound of surface.
+		//todo make this switchable/alternate shader, to demo that range already better than sphere tracer
+		//since return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		//min alt means highest surf . position.y +10 -1-1 = position.y+8
+		//ie surf is at y=-8
+		//this helps range hugely, but doesn't play nice with other object in scene (player pyramid)
+		//could make this check part of regular raymarch (step is max of conetrace and this calculation)
+		if (rayDir.y<0.0){
+			//going downward.
+			if (rayPos.y>-8.0){
+				rayPos-=rayDir*((rayPos.y+8.0)/rayDir.y);
+			}
+		}
+		
+		
+		for (int ii=0;ii<RAYSTEPSI;ii++){
+			cubsdf = sdfFunc(rayPos);
+			//other's sdf might not return 4th as length
+			
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
+			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
+			
+			rayPos+=cubsdf*rayDir;
+		}
+	
+	
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.0005;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+															
+		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
+		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
+			//TODO check logic holds up for cone-tracer normal esitmation!
+		
+		float distanceDifference = sdfFunc(rayPos) - cubsdf;
+		float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1
+			//adding the 1/marchfactor appears to fix lighting difference between sphere and cone tracing. (bit annoying for mixed scenes)
+		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
+		
+		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		
+		return;
+		//override with debug rendering
+		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = 0.0;
+		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
+	}
+
+
+</script>
+
+
+
+
+
+<!-- "cone tracer" with a different scene-->
+<script id="shader-raymarch10b-fs" type="x-shader/x-fragment">
+
+	#define RAYSTEPSI 24
+	#define RAYSTEPSF 24.0
+	#define RAYTERMINCOND 0.001
+	
+	precision mediump float;
+	
+	varying vec3 mynum;
+	varying vec3 rayStart;
+	varying vec3 vCameraDirection;
+	
+	float pyramidSurfAltitude(in vec4 position){
+		//initially simple surface
+	//	return position.y+10.0;	//+10.0 pushes surface down by 10
+		
+		//super simple surface - shallow sine wave. 
+		//return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		
+		return position.y+10.0+max(abs(mod(position.x*0.5656,4.0)-2.0), abs(mod(position.z*0.5656,4.0)-2.0));
+		
+		//what is maximum gradient? 
+		//derivative of sin(kx) = ksinx . k=0.4 so max grad 0.4
+		//in 2 directions so 0.4*sqrt(2) = 0.56568
+	}
+	
+	float marchFactor;
+	
+	float pyramidSurfMarchdist(in vec4 position){
+		return marchFactor*pyramidSurfAltitude(position);	
+		
+		//assume some cone angle. initially try 45 degrees. 
+		//this should be precalculated since rayDir does not change. basically mapping alt to march distance. 
+		// for vertical, dist = alt
+		// for some cone angle... - dot(rayDir,conenorm) , which is, assuming cone normal in y direction
+		//   length(rayDir.xz)*coneOutNorm + rayDir.y*coneDownNorm
+		//	ray length scales as 1/that . to get correct scale constant, see that for ray pointing down:
+		// that = 1*coneDownNorm.
+		// therefore just make the cone normal not normalised. coneDownNorm = -1, coneOutNorm is cone gradient. ie for 45 deg, coneoutnorm=1.
+		
+		//therefore
+		// marchlength = alt / (length(rayDir.xz)*coneGrad - rayDir.y )
+		// 
+		//sensible to precalc marchFactor = 1/(length(rayDir.xz)*coneGrad - rayDir.y )
+			// then marchlength = alt*marchfactor
+			//note that marchfactor can be inf! guess should account for that earlier. hack to make work by just doing
+			//marchFactor = 1/max(smallPositiveNumber,(length(rayDir.xz)*coneGrad - rayDir.y ))
+			//really though should just be returning early
+	}
+	
+	float sdfFunc(in vec4 position){
+		//pyramid player object.
+		
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		
+		return min(playerSdf, pyramidSurfMarchdist(position));
+	}
+	
+	void main(void){
+		float cubsdf;
+		float numSteps=RAYSTEPSF;
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		
+		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
+
+		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
+	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		
+		
+		//first, big step to upper bound of surface.
+		//todo make this switchable/alternate shader, to demo that range already better than sphere tracer
+		// return position.y+10.0+max(abs(mod(position.x*0.5656,4.0)-2.0), abs(mod(position.z*0.5656,4.0)-2.0));
+		
+		if (rayDir.y<0.0){
+			//going downward.
+			if (rayPos.y>-10.0){
+				rayPos-=rayDir*((rayPos.y+10.0)/rayDir.y);
+			}
+		}
+		
+		
+		float coneGrad=0.56568;	//AFAIK exact limiting gradient
+		//float coneGrad=0.1;	//too shallow. expect artifacts
+		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
+		
+		for (int ii=0;ii<RAYSTEPSI;ii++){
+			cubsdf = sdfFunc(rayPos);
+			//other's sdf might not return 4th as length
+			
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
+			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
+			
+			rayPos+=cubsdf*rayDir;
+		}
+	
+	
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.0004;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+															
+		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
+		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
+			//TODO check logic holds up for cone-tracer normal esitmation!
+		
+		float distanceDifference = sdfFunc(rayPos) - cubsdf;
+		float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1
+			//adding the 1/marchfactor appears to fix lighting difference between sphere and cone tracing. (bit annoying for mixed scenes)
+		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
+		
+		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		
+		return;
+		//override with debug rendering
+		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = 0.0;
+		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
+	}
+
+
+</script>
+
+
+<!-- "cone tracer" with texture lookup-->
+<script id="shader-raymarch11-fs" type="x-shader/x-fragment">
+	//this is super slow, maybe because texture reads are dependent on eachother, or maybe tex reads just slow
+	//candidate for speedup by lo-hi resolution stages ?
+	
+
+	#define RAYSTEPSI 24
+	#define RAYSTEPSF 24.0
+	#define RAYTERMINCOND 0.001
+	
+	precision mediump float;
+	
+	uniform sampler2D uSampler;
+	
+	varying vec3 mynum;
+	varying vec3 rayStart;
+	varying vec3 vCameraDirection;
+	
+	float pyramidSurfAltitude(in vec4 position){
+		return position.y+10.0-2.0*texture2D(uSampler, position.xz*0.015).x;
+	}
+	
+	float marchFactor;
+	
+	float pyramidSurfMarchdist(in vec4 position){
+		return marchFactor*pyramidSurfAltitude(position);	
+	}
+	
+	float sdfFunc(in vec4 position){
+		//pyramid player object.
+		
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		
+		return min(playerSdf, pyramidSurfMarchdist(position));
+	}
+	
+	void main(void){
+		float cubsdf;
+		float numSteps=RAYSTEPSF;
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		
+		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
+
+		vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+	//	float mynuminvsq = 1.0/dot(mynum,mynum);	//assuming that passing thru mynum with z=1 //is 1/x^2 a special shader function?
+	//	vec4 rayDir = vec4( mynum*vec3(2.0*mynuminvsq) - vCameraDirection , 1.0);
+		
+		
+		//quick step to upper bounding plane (see previous shaders)
+		if (rayDir.y<0.0){
+			//going downward.
+			if (rayPos.y>-8.5){
+				rayPos-=rayDir*((rayPos.y+8.5)/rayDir.y);
+			}
+		}
+		
+		
+		float coneGrad=0.7;	//trial and error it for now. bigger safer and slower
+
+		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
+		
+		for (int ii=0;ii<RAYSTEPSI;ii++){
+			cubsdf = sdfFunc(rayPos);
+			//other's sdf might not return 4th as length
+			
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
+			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
+			
+			rayPos+=cubsdf*rayDir;
+		}
+	
+	
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.0004;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+															
+		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
+		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
+			//TODO check logic holds up for cone-tracer normal esitmation!
+		
+		float distanceDifference = sdfFunc(rayPos) - cubsdf;
+		float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1
+			//adding the 1/marchfactor appears to fix lighting difference between sphere and cone tracing. (bit annoying for mixed scenes)
+		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
+		
+		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		
+		return;
+		//override with debug rendering
+		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = 0.0;
+		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
+	}
+</script>
+
+
 <script type="text/javascript" src="lib/dat.gui.min.js"></script>
 <script type="text/javascript" src="lib/stats.min.js"></script>
 <script type="text/javascript" src="lib/gl-matrix-min.js"></script>
@@ -878,6 +1386,47 @@ function initShaders(){
 					attributes:standardAttributes,
 					uniforms:["uMVMatrix","fovScale","rayStartIn","uCamCurve","uMandelboxScale","uC1","uCubeLimit"]
 					});
+	shaderPrograms.wobblySurfaceSphereTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch10-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.wobblySurfaceConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch10a-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.pyramidSurfaceConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch10b-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.textureConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch11-fs",{
+					attributes:standardAttributes,
+					uniforms:["uMVMatrix","fovScale","rayStartIn","uSampler"]
+					});
+}
+
+
+var texture;
+
+function initTexture(){
+	texture = makeTexture("data/terrain/turbulent-seamless.png");
+	//texture = makeTexture("data/terrain/seamless_tileable_voronoi_bump_displacement_map_by_mcasual_dbr4tgs.png");
+}
+
+function makeTexture(src) {	//to do OO
+	var texture = gl.createTexture();
+	texture.image = new Image();
+	texture.image.onload = function(){
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		//gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		//gl.generateMipmap(gl.TEXTURE_2D);		//not sure how mipmapping will work out with multiple samples from same texture for a given pixel
+		gl.bindTexture(gl.TEXTURE_2D, null);
+	};	
+	texture.image.src = src;
+	return texture;
 }
 
 var quadBuffers={};
@@ -948,6 +1497,7 @@ function drawObjectFromPreppedBuffers(bufferObj, shaderProg){
 	gl.drawElements(gl.TRIANGLES, bufferObj.vertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 }
 
+var textureEnabled=false;
 function drawScene(){
 	stats.end();
 	stats.begin();
@@ -960,6 +1510,28 @@ function drawScene(){
 
 	var activeShaderProgram = shaderPrograms[guiParams.shader];
 	gl.useProgram(activeShaderProgram);
+	
+	//this probably should only be happening on shader switching:
+	//also maybe should be deactivating texture when not in use
+	if(activeShaderProgram.uniforms.uSampler){
+		enableTexture(true);
+	}else{
+		enableTexture(false);
+	}
+	
+	//this should change if multiple shaders use a texture.
+	function enableTexture(shouldEnable){		//bug:tex takes time to load, so thinks enabled when not...
+		if (shouldEnable!=textureEnabled){
+			if(shouldEnable){
+				gl.activeTexture(gl.TEXTURE0);
+				gl.bindTexture(gl.TEXTURE_2D, texture);
+				gl.uniform1i(activeShaderProgram.uniforms.uSampler, 0);
+			}else{
+				gl.bindTexture(gl.TEXTURE_2D, null);
+			}
+		}
+		textureEnabled=shouldEnable;
+	}
 	
 	if (Object.keys(activeShaderProgram.uniforms).indexOf("uMandelboxScale")!=-1){
 		var mbScale = guiParams.absMandelboxScale * guiParams.signMandelboxScale;
@@ -1019,7 +1591,7 @@ function init(){
 			var keyCode=e.keyCode;
 			console.log(keyCode);
 			//WASD = 87,65,83,68
-			var camStep = 0.01;
+			var camStep = 0.001;
 			
 			var camMove = [0,0,0];
 			if (keyCode == 87){camMove[2]+=camStep;}
@@ -1052,7 +1624,7 @@ function init(){
 			newTime = (new Date()).getTime();
 			var timeElapsed = Math.min(newTime - oldTime, 1000);	//1s max
 			//exponential decay of speed towards desired speed. TODO proper movement integration, but doesn't really matter
-			var decayFactor = Math.pow(0.99,timeElapsed);
+			var decayFactor = Math.pow(0.995,timeElapsed);
 			
 			camSpeed = camSpeed.map(function(val,ii){return val*decayFactor;});	//TODO keystate = target value... + (1-decayFactor)*camMove[ii];});
 			//camSpeed = camSpeed.map(function(val,ii){return camMove[ii];});
@@ -1113,7 +1685,7 @@ function init(){
 		vecLength=Math.sqrt(vecLength);
 		var axis = rotateAmt.map(function(currentValue){return currentValue/vecLength;});
 
-		mat4.rotate(mvMatrix,vecLength,axis);	
+		mat4.rotate(mvMatrix,vecLength,axis);
 	}
 	
 	initGL();
@@ -1123,6 +1695,7 @@ function init(){
 	//gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	
 	initShaders();
+	initTexture();
 	initBuffers();
 	gl.disable(gl.DEPTH_TEST);
 	
