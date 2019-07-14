@@ -1,0 +1,8 @@
+*	correct lighting/normal calc!
+*	preprocess/utility to find max gradient for an image (including wrap)/ generate a gradient image. are tex wrap artifacts because gradient too high?
+*	preprocess to find grad limit per pixel
+		how to make fast? lower res maximum height image. then can rule out whole chunks (furthest point in block at max height gives lower bound. nearest point at max height gives upper. find greatest lower bound. skip all blocks with upper bound less then this. go thru rest, guess ranked by upper or lower bound. keep the highest gradient found, for each new block, if upper bound less than this highest gradient so far, skip.
+		expect for say, 16x16 blocks, impressive speedup.
+*	how should grad limit be interpolated? (if at all)
+*	encode 2 normal values, height and cone size in texmap 
+*	lo-hi staged rendering (expect should help with "downhill" problem, since should enable greater effective step number) 
