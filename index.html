@@ -1843,7 +1843,9 @@ function drawScene(){
 	stats.end();
 	stats.begin();
 
-	resizecanvas(1);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
+	var sizefactor = 1;
+	if (shouldTakeScreenshot){sizefactor=4;}
+	resizecanvas(sizefactor);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
 						//4 and things break on vivaldi!
 	
 	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);	//TODO should this be every frame?
@@ -1902,7 +1904,22 @@ function drawScene(){
 	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.0005 % 4]);
 	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, camPos);
 	
-	drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+	var topBottom = true;	//for stereo rendering.
+	if (!topBottom){
+		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+	}else{
+		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight/2);
+		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+		gl.viewport(0,  gl.viewportHeight/2, gl.viewportWidth, gl.viewportHeight/2);
+		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+	}
+	
+	if (shouldTakeScreenshot){
+		console.log("will try to take a screenshot");
+		downloadCanvas("savedCanvas.png","png",canvas);	//this approach appears to use too much memory
+		shouldTakeScreenshot=false;
+	}
+	
 }
 
 //first get a gl window with some clearcolor
@@ -2094,6 +2111,33 @@ function init(){
 		return output;
 	}
 }
+
+var shouldTakeScreenshot = false;
+function takeScreenshot(){
+	//would like to render to an offscreen big canvas, save canvas to image file, but since gl context comes from screen canvas,
+	//unsure if need another gl context. do have code elsewhere for drawing to image (to generate cubemap).
+	//for now, just size screen big when take screenshot, save screen canvas.
+	shouldTakeScreenshot=true;
+}
+
+function downloadCanvas(filename, fileext, canvastodownload){
+	var data = canvastodownload.toDataURL("image/" + fileext);
+
+	var pom = document.createElement('a');
+    //pom.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    pom.setAttribute('href', data);
+    pom.setAttribute('download', filename);
+
+    if (document.createEvent) {
+        var event = document.createEvent('MouseEvents');
+        event.initEvent('click', true, true);
+        pom.dispatchEvent(event);
+    }
+    else {
+        pom.click();
+    }
+}
+
 
 
 </script>
