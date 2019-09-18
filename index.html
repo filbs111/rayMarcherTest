@@ -517,7 +517,8 @@
 <script id="shader-raymarch8-equirect-fs" type="x-shader/x-fragment">
 	precision mediump float;
 	//precision highp float;
-	uniform float uCamCurve;
+	uniform float uCamCurve;	//unused for equirect
+	uniform float uEyeShift;
 	varying vec3 mynum;
 	varying vec3 rayStart;
 	varying vec3 vCameraDirection;
@@ -583,6 +584,12 @@
 		float elev = mynum.y;	//elevation
 		float turn = mynum.x;
 		vec4 rayDir = vec4( cos(turn)*cos(elev) , sin(elev), sin(turn)*cos(elev), 1.0);
+		
+		//move rayPos to eye position.
+		rayPos += uEyeShift * vec4( sin(turn), 0.0, -cos(turn), 0.0 );
+		
+		//move eyes forward? (seems worse)
+		//rayPos -= uEyeShift * vec4( cos(turn), 0.0, sin(turn), 0.0 );
 		
 		float numSteps=64.0;
 		vec3 toTorus;
@@ -1711,7 +1718,7 @@ function initShaders(){
 					});
 	shaderPrograms.mengercubes_equirect = loadShader( "shader-fullscreen-equirect-vs", "shader-raymarch8-equirect-fs",{
 					attributes:standardAttributes,
-					uniforms:standardUniforms
+					uniforms:["uMVMatrix","fovScale","rayStartIn","uCamCurve", "uEyeShift"]  
 					});
 	
 	shaderPrograms.mandelbox = loadShader( "shader-fullscreen-vs", "shader-raymarch9-fs",{
@@ -1904,12 +1911,14 @@ function drawScene(){
 	//gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, [0,0,(new Date()).getTime()*0.0005 % 4]);
 	gl.uniform3fv(activeShaderProgram.uniforms.rayStartIn, camPos);
 	
-	var topBottom = true;	//for stereo rendering.
-	if (!topBottom){
+	var halfEyeSep = 0.1;	//TODO ui control
+	if (!activeShaderProgram.uniforms.uEyeShift){
 		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 	}else{
+		gl.uniform1f(activeShaderProgram.uniforms.uEyeShift, -halfEyeSep);
 		gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight/2);
 		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
+		gl.uniform1f(activeShaderProgram.uniforms.uEyeShift, halfEyeSep);
 		gl.viewport(0,  gl.viewportHeight/2, gl.viewportWidth, gl.viewportHeight/2);
 		drawObjectFromBuffers(quadBuffers, activeShaderProgram);
 	}
