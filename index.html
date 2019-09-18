@@ -851,11 +851,11 @@ eventually might wish to combo with "real" geometry so webgl default depth mappi
 
 step1- a surface spheremarcher with a max gradient which should be reproducible using conetracing/virtual height map
 -->
-<script id="shader-raymarch10-fs" type="x-shader/x-fragment">
+<script id="shader-raymarch-wobble-strace-fs" type="x-shader/x-fragment">
 
-	#define RAYSTEPSI 24
-	#define RAYSTEPSF 24.0
-	#define RAYTERMINCOND 0.001
+	#define RAYSTEPSI 64
+	#define RAYSTEPSF 64.0
+	#define RAYTERMINCOND 0.0002
 	
 	precision mediump float;
 	
@@ -949,13 +949,14 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
 		
-		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
-		
+		//gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		gl_FragColor = vec4(vec3(lightval),1.0);
 		return;
 		//override with debug rendering
-		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
 		//gl_FragColor.x = 0.0;	
-		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.x = mod(rayPos.y,1.0);
+		gl_FragColor.y = lightval;
 		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
 	}
 
@@ -964,11 +965,11 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 
 
 <!-- "cone tracer" equivalent of above-->
-<script id="shader-raymarch10a-fs" type="x-shader/x-fragment">
+<script id="shader-raymarch-wobble-ctrace-fs" type="x-shader/x-fragment">
 
-	#define RAYSTEPSI 24
-	#define RAYSTEPSF 24.0
-	#define RAYTERMINCOND 0.001
+	#define RAYSTEPSI 64
+	#define RAYSTEPSF 64.0
+	#define RAYTERMINCOND 0.0002
 	
 	precision mediump float;
 	
@@ -1084,23 +1085,52 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		//todo make this neat by using a function for sdf, check no speed lost
 		float smallDisp = 0.0005;	//some arbitrary small number displacement. should be small but not run into float precision problems
 									//runs into problems when ray pointed at empty space
-															
+	/*														
 		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
 		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
 			//TODO check logic holds up for cone-tracer normal esitmation!
 		
 		float distanceDifference = sdfFunc(rayPos) - cubsdf;
-		float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1
+		//float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1
+		float lightval = (distanceDifference/smallDisp)*0.5+0.5;	//map -1 to 1 to 0 to 1
 			//adding the 1/marchfactor appears to fix lighting difference between sphere and cone tracing. (bit annoying for mixed scenes)
+	*/		
+		//what is exact thing here? lighting vector = displacement vector d.
+		//easiest way maybe just to create normal by 2 displacements in x,z.
+		//maybe can get to work by single sample method...
+		
+		//change in sampled value = d.x*(dy/dx) + d.z*(dy/dz) - d.y = dot(d, vec3(dy/dx, -1, dy/dz))
+		//normal to surface - when viewed from side should be perpendicular to line, so:
+		// n.x/n.y = -dy/dx , n.z/n.y = -dy/dz 
+		// -> n = normalize ( -dy/dx , 1, -dy/dz)
+		//	-> light = -d.norm = dot(d,normalize ( dy/dx , -1, dy/dz))
+		
+		// -> lighting different to difference of samples, because normalisation.
+		// in example of lighting along x, know that...
+		// change in sampled value = d.x(dy/dx)	=	dy/dx
+		// light = d.x((dy/dx)/length(dy/dx,-1,dy/dz)
+		//	but don't know the length!
+		
+		//seems that to get correct normal, require two displaced samples. (x,z displaced)
+		
+		float dydx = cubsdf - sdfFunc(rayPos+vec4(smallDisp,0.0,0.0,0.0));
+		float dydz = cubsdf - sdfFunc(rayPos+vec4(0.0,0.0,smallDisp,0.0));
+		vec3 normal = normalize(vec3(dydx,smallDisp,dydz));
+		float lightval2 = dot(vec3(1.,0.,0.),  normal);
+		//map -1 to 1 -> 0 to 1
+		float lightval = -lightval2*0.5 + 0.5;
+			//^  doesn't seem much difference to guessed hack method
+		
 		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
 		
-		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
-		
+		//gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		gl_FragColor = vec4(vec3(lightval),1.0);
 		return;
 		//override with debug rendering
-		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
 		//gl_FragColor.x = 0.0;
-		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.x = mod(rayPos.y,1.0);
+		gl_FragColor.y = lightval;
 		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
 	}
 
@@ -1108,7 +1138,143 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 </script>
 
 
+<!-- cone tracer that uses a max func to handle combining other object with surface, avoiding simple step to bounding surface -->
+<script id="shader-raymarch-wobble-ctrace2-fs" type="x-shader/x-fragment">
 
+	#define RAYSTEPSI 64
+	#define RAYSTEPSF 64.0
+	#define RAYTERMINCOND 0.0002
+	
+	precision mediump float;
+	
+	uniform float uCamCurve;
+	
+	varying vec3 mynum;
+	varying vec3 rayStart;
+	varying vec3 vCameraDirection;
+	
+	float pyramidSurfAltitude(in vec4 position){
+		//initially simple surface
+	//	return position.y+10.0;	//+10.0 pushes surface down by 10
+		
+		//super simple surface - shallow sine wave. 
+		return position.y+10.0+sin(position.x*0.4)+sin(position.z*0.4);
+		
+		//what is maximum gradient? 
+		//derivative of sin(kx) = ksinx . k=0.4 so max grad 0.4
+		//in 2 directions so 0.4*sqrt(2) = 0.56568
+	}
+	
+	float marchFactor;
+	
+	float pyramidSurfMarchdist(in vec4 position){
+		return marchFactor*pyramidSurfAltitude(position);	
+		
+		//assume some cone angle. initially try 45 degrees. 
+		//this should be precalculated since rayDir does not change. basically mapping alt to march distance. 
+		// for vertical, dist = alt
+		// for some cone angle... - dot(rayDir,conenorm) , which is, assuming cone normal in y direction
+		//   length(rayDir.xz)*coneOutNorm + rayDir.y*coneDownNorm
+		//	ray length scales as 1/that . to get correct scale constant, see that for ray pointing down:
+		// that = 1*coneDownNorm.
+		// therefore just make the cone normal not normalised. coneDownNorm = -1, coneOutNorm is cone gradient. ie for 45 deg, coneoutnorm=1.
+		
+		//therefore
+		// marchlength = alt / (length(rayDir.xz)*coneGrad - rayDir.y )
+		// 
+		//sensible to precalc marchFactor = 1/(length(rayDir.xz)*coneGrad - rayDir.y )
+			// then marchlength = alt*marchfactor
+			//note that marchfactor can be inf! guess should account for that earlier. hack to make work by just doing
+			//marchFactor = 1/max(smallPositiveNumber,(length(rayDir.xz)*coneGrad - rayDir.y ))
+			//really though should just be returning early
+	}
+	
+	float sdfFunc(in vec4 position, float ydir){
+		//pyramid player object.
+		
+		vec3 psnPlayerFrame = position.xyz - vec3(8.0,0.0,0.0);
+		vec2 absPlayerXY = abs(psnPlayerFrame.xy);
+		//float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*0.7 + psnPlayerFrame.z*0.7 - 1.0;	//0.7 should be root 2
+		float pyramidAng = 0.3;
+		float playerSdf = max(absPlayerXY.x,absPlayerXY.y)*cos(pyramidAng) + psnPlayerFrame.z*sin(pyramidAng) - 1.0;	//pointier
+			//at this stage, infinite pyramid!
+		playerSdf = max(playerSdf , 1.0-psnPlayerFrame.z);
+		
+				
+		float toBoundingSurf=-1000.;	//will pick maximum. make smaller than 0 because should be able to return something -ve when doing displacement check for normals.
+		if (position.y>-8.){
+			if (ydir<0.){	//going downward.
+				toBoundingSurf = -(position.y+8.)/ydir;
+			}
+		}
+		//^^ better to calc a collision rayPos.w value?
+		
+		return min(playerSdf, max(pyramidSurfMarchdist(position),toBoundingSurf));
+	}
+	
+	void main(void){
+		float cubsdf;
+		float numSteps=RAYSTEPSF;
+		vec4 rayPos=vec4(vec3(rayStart),0.0);	//last number is total ray length.
+		
+		rayPos+=vec4(0.0,0.0,-6.0,0.0);	//bodge to move object??
+
+		//vec4 rayDir=vec4(normalize(mynum),1.0);	//rectilinear camera
+		
+		//variable camera rectilinear to stereographic, maintaining fixed angular res in centre of view. unoptimised code.
+		float var1 = uCamCurve*-0.125;
+		float var2 = 4.0;	//zoom
+		float mynumdotcamdir = dot(vCameraDirection,mynum);
+		vec3 plllpart = mynumdotcamdir*vCameraDirection;
+		vec3 perppart = mynum - plllpart;
+		float zpos = 2.0 + var1*(var2*var2*dot(perppart,perppart));
+		vec4 rayDir = vec4( normalize(var2*perppart + zpos*vCameraDirection), 1.0);
+		
+
+		float coneGrad=0.56568;	//AFAIK exact limiting gradient
+		//float coneGrad=0.1;	//too shallow. expect artifacts
+		marchFactor = 1.0/max(0.000001,(length(rayDir.xz)*coneGrad - rayDir.y ));
+		
+		
+		for (int ii=0;ii<RAYSTEPSI;ii++){
+			cubsdf = sdfFunc(rayPos, rayDir.y);
+			//other's sdf might not return 4th as length
+			
+			float inCameraFrameZ = rayPos.w;	//TODO some multiplier for this const for a given pixel
+			if (cubsdf<RAYTERMINCOND*inCameraFrameZ){numSteps=float(ii)+(cubsdf/(RAYTERMINCOND*inCameraFrameZ));break;}	
+			
+			rayPos+=cubsdf*rayDir;
+		}
+	
+	
+		//dot surface normal with light direction for gradient skylight. getting surface normal requires 3 more SDF samples, eg displaced by small x,y,z
+		//if want to dot normal with direction, just do one sample
+		//todo make this neat by using a function for sdf, check no speed lost
+		float smallDisp = 0.00005;	//some arbitrary small number displacement. should be small but not run into float precision problems
+									//runs into problems when ray pointed at empty space
+															
+		//rayPos+=vec4(0.0,smallDisp,0.0,0.0); 
+		rayPos+=vec4(smallDisp,0.0,0.0,0.0); 	//light from side instead of straight down!
+			//TODO check logic holds up for cone-tracer normal esitmation!
+		
+		float distanceDifference = sdfFunc(rayPos, rayDir.y) - cubsdf;
+		float lightval = (distanceDifference/smallDisp)*0.5/marchFactor+0.5;	//map -1 to 1 to 0 to 1	THIS CAN BE A BIT WRONG!!
+		//float lightval = (distanceDifference/smallDisp)*0.5*0.01+0.5;	//map -1 to 1 to 0 to 1	THIS CAN BE A BIT WRONG!!
+			//adding the 1/marchfactor appears to fix lighting difference between sphere and cone tracing. (bit annoying for mixed scenes)
+		float mycol=max(0.0,1.0-numSteps/RAYSTEPSF);
+		
+		//gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
+		gl_FragColor = vec4(vec3(lightval),1.0);
+		return;
+		//override with debug rendering
+		//gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
+		//gl_FragColor.x = 0.0;
+		gl_FragColor.x = mod(rayPos.y,1.0);
+		gl_FragColor.y = lightval;
+		//gl_FragColor.y = .5;
+		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
+	}
+</script>
 
 
 <!-- "cone tracer" with a different scene-->
@@ -1241,11 +1407,11 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		
 		gl_FragColor = vec4(vec3(mycol,mycol,mycol*mycol)*lightval,1.0);
 		
-		return;
+		//return;
 		//override with debug rendering
 		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
 		//gl_FragColor.x = 0.0;
-		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.y = lightval;
 		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
 	}
 
@@ -1363,7 +1529,7 @@ step1- a surface spheremarcher with a max gradient which should be reproducible 
 		//override with debug rendering
 		gl_FragColor.x = mycol;	//shows that all ray steps used, so doesn't get sufficiently close to break. ?!!
 		//gl_FragColor.x = 0.0;
-		gl_FragColor.y = lightval;	//doesn't seem to be working right. is surface finding reliable?
+		gl_FragColor.y = lightval;
 		gl_FragColor.z = max(0.0,1.0-0.25*rayPos.w);
 	}
 </script>
@@ -1419,11 +1585,15 @@ function initShaders(){
 					attributes:standardAttributes,
 					uniforms:["uMVMatrix","fovScale","rayStartIn","uCamCurve","uMandelboxScale","uC1","uCubeLimit"]
 					});
-	shaderPrograms.wobblySurfaceSphereTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch10-fs",{
+	shaderPrograms.wobblySurfaceSphereTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch-wobble-strace-fs",{
 					attributes:standardAttributes,
 					uniforms:standardUniforms
 					});
-	shaderPrograms.wobblySurfaceConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch10a-fs",{
+	shaderPrograms.wobblySurfaceConeTracer = loadShader( "shader-fullscreen-vs", "shader-raymarch-wobble-ctrace-fs",{
+					attributes:standardAttributes,
+					uniforms:standardUniforms
+					});
+	shaderPrograms.wobblySurfaceConeTracer2 = loadShader( "shader-fullscreen-vs", "shader-raymarch-wobble-ctrace2-fs",{
 					attributes:standardAttributes,
 					uniforms:standardUniforms
 					});
@@ -1536,8 +1706,9 @@ function drawScene(){
 	stats.end();
 	stats.begin();
 
-	resizecanvas(1);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
-
+	resizecanvas(4);	//1 for same resolution as displayed. larger number to draw more pixels, observe slowdown on a decent machine
+						//4 and things break on vivaldi!
+	
 	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);	//TODO should this be every frame?
 
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1786,7 +1957,6 @@ function init(){
 		return output;
 	}
 }
-
 
 
 </script>
